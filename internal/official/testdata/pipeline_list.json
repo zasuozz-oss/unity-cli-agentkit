@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "command": "pipeline list",
+  "data": {
+    "instances": [
+      {
+        "projectName": "Unity-AI",
+        "projectPath": "/Users/zasuo/Unity/Unity-AI",
+        "pid": 75836,
+        "isRunning": true,
+        "hasPipelinePackage": true,
+        "pipelineVersion": "0.4.0-exp.1",
+        "updateAvailable": false,
+        "pipelineServer": {
+          "port": 7800,
+          "isReachable": true,
+          "apiUrl": "http://127.0.0.1:7800/api/editor_status"
+        },
+        "safeMode": null
+      }
+    ],
+    "latestVersion": "0.4.0-exp.1",
+    "summary": {
+      "totalInstances": 1,
+      "runningInstances": 1,
+      "instancesWithPipeline": 1,
+      "reachableServers": 1,
+      "instancesInSafeMode": 0,
+      "instancesWithUpdateAvailable": 0
+    }
+  },
+  "errors": [],
+  "warnings": []
+}

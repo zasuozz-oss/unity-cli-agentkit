@@ -1,0 +1,12 @@
+{
+  "success": false,
+  "command": "unity command eval",
+  "data": null,
+  "errors": [
+    {
+      "code": "COMMAND_FAILED",
+      "message": "Compilation Failed\n  ; expected (line 1, col 23)\n  The name 'bad' does not exist in the current context (line 1, col 19)\n  The type or namespace name 'syntax' could not be found (are you missing a using directive or an assembly reference?) (line 1, col 23)\n  Unreachable code detected (line 1, col 23)\n  The variable 'here' is declared but never used (line 1, col 30)"
+    }
+  ],
+  "warnings": []
+}
