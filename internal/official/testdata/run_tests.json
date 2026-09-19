@@ -1,0 +1,441 @@
+{
+  "success": true,
+  "command": "command run_tests",
+  "data": {
+    "command": "run_tests",
+    "parameters": {
+      "json": true,
+      "no-banner": true
+    },
+    "result": {
+      "Summary": {
+        "Total": 57,
+        "Passed": 55,
+        "Failed": 2,
+        "Skipped": 0,
+        "Inconclusive": 0
+      },
+      "Results": [
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_carve_silhouette_ignores_cells_outside_the_board",
+          "Status": "Passed",
+          "Duration": 0.0000823,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_carve_silhouette_reads_rows_top_down",
+          "Status": "Passed",
+          "Duration": 0.0000438,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_carve_silhouette_returns_empty_for_no_rows",
+          "Status": "Passed",
+          "Duration": 0.000038,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_every_painting_has_a_unique_display_name",
+          "Status": "Failed",
+          "Duration": 0.0020632,
+          "Message": "  p007 'Mona Lisa Loves Bows' is too long for a cell\r\n  Expected: less than or equal to 3\r\n  But was:  4\r\n",
+          "StackTrace": "at SlideJigsaw.Tests.CampaignGeneratorTests.test_every_painting_has_a_unique_display_name () [0x0005f] in C:\\Users\\Zasuo\\Desktop\\Project\\Unity\\Funny Jigsaw\\Assets\\_Project\\Tests\\CampaignGeneratorTests.cs:138\r\n"
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_find_free_anchor_is_deterministic_for_a_seed",
+          "Status": "Passed",
+          "Duration": 0.0000789,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_find_free_anchor_never_returns_occupied_or_out_of_bounds",
+          "Status": "Passed",
+          "Duration": 0.0017834,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_find_free_anchor_returns_null_when_board_is_full",
+          "Status": "Passed",
+          "Duration": 0.0000532,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.CampaignGeneratorTests.test_find_free_anchor_spreads_across_the_board",
+          "Status": "Passed",
+          "Duration": 0.0002395,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.AdOfferedLockedCard_HidesLockIcon_ShowsAdButtonAndAccent",
+          "Status": "Passed",
+          "Duration": 0.0000766,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.AdOfferedLockedCard_IsNotMasked",
+          "Status": "Passed",
+          "Duration": 0.000037,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.Interactable_FollowsUnlocked",
+          "Status": "Passed",
+          "Duration": 0.0000362,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.LockedCard_CountShowsTotal",
+          "Status": "Failed",
+          "Duration": 0.0002377,
+          "Message": "  Expected: True\r\n  But was:  False\r\n",
+          "StackTrace": "at SlideJigsaw.Tests.LevelCardStateTests.LockedCard_CountShowsTotal () [0x0000a] in C:\\Users\\Zasuo\\Desktop\\Project\\Unity\\Funny Jigsaw\\Assets\\_Project\\Tests\\LevelCardStateTests.cs:79\r\n"
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.PaintingCount_IsExposedForAdLabel",
+          "Status": "Passed",
+          "Duration": 0.000046,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.ProgressionLockedCard_IsMaskedAndLocked_WithoutAdChrome",
+          "Status": "Passed",
+          "Duration": 0.0000385,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.SinglePaintingLevel_HidesCountBadge",
+          "Status": "Passed",
+          "Duration": 0.0000353,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.UnlockedCard_CountShowsProgress",
+          "Status": "Passed",
+          "Duration": 0.0000371,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.LevelCardStateTests.UnlockedCard_ShowsNoLockChrome_EvenWhenAdOffered",
+          "Status": "Passed",
+          "Duration": 0.0000363,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.ShapePresetsTests.test_cells_for_skips_unknown_ids",
+          "Status": "Passed",
+          "Duration": 0.0000506,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.ShapePresetsTests.test_every_pentomino_preset_exists_and_has_five_cells",
+          "Status": "Passed",
+          "Duration": 0.0000864,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.ShapePresetsTests.test_every_preset_id_is_unique",
+          "Status": "Passed",
+          "Duration": 0.0000946,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "SlideJigsaw.Tests.ShapePresetsTests.test_every_preset_is_edge_connected",
+          "Status": "Passed",
+          "Duration": 0.0000986,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.AdTelemetryTests.AdClick_CarriesPlacement",
+          "Status": "Passed",
+          "Duration": 0.0000905,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.AdTelemetryTests.AdComplete_CarriesResult",
+          "Status": "Passed",
+          "Duration": 0.0000638,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.AdTelemetryTests.AdImpression_EmitsRevenueAndRoutesAdRevenue",
+          "Status": "Passed",
+          "Duration": 0.0000762,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.AdTelemetryTests.AdRequest_EmitsStandardParams",
+          "Status": "Passed",
+          "Duration": 0.0000684,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.NativeAdSlotTests.ToUiKitRect_FlipsYAndKeepsSize",
+          "Status": "Passed",
+          "Duration": 0.0000838,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsAdsFacadeTests.FakeBackend_RewardedReadyAfterSetup_ShowInvokesRewardedTrue",
+          "Status": "Passed",
+          "Duration": 0.0001741,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsAdsFacadeTests.Interstitial_CooldownBlocksSecondShow_UntilElapsed",
+          "Status": "Passed",
+          "Duration": 0.0001195,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsAdsFacadeTests.OnRewardedLoaded_ForwardedFromBackend",
+          "Status": "Passed",
+          "Duration": 0.0001128,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsAdsFacadeTests.ShowRewarded_NotReady_InvokesRewardedFalse",
+          "Status": "Passed",
+          "Duration": 0.0001062,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ConsentStepsTests.AttStep_InEditor_ResolvesNotSupported",
+          "Status": "Passed",
+          "Duration": 0.0002484,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ConsentStepsTests.UmpStep_InEditor_ResolvesCanRequestAds",
+          "Status": "Passed",
+          "Duration": 0.0001103,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ConsentStepsTests.ZsConsent_InEditor_PrivacyOptionsNotRequired_ShowResolvesImmediately",
+          "Status": "Passed",
+          "Duration": 0.0000891,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Bootstrap_Idempotent_ModuleInitsOnce",
+          "Status": "Passed",
+          "Duration": 0.0001558,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Bootstrap_NoSteps_ResolvesConsentImmediately_DefaultCanRequestAds",
+          "Status": "Passed",
+          "Duration": 0.0001137,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.LateSubscriber_AfterResolve_FiresImmediately",
+          "Status": "Passed",
+          "Duration": 0.0000923,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Module_RegisteredAfterResolve_InitsImmediately",
+          "Status": "Passed",
+          "Duration": 0.0000908,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Module_RequiresUserId_WaitsForSetUserId",
+          "Status": "Passed",
+          "Duration": 0.0000897,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Module_WaitsForGate_ThenInitsOnReevaluate",
+          "Status": "Passed",
+          "Duration": 0.0000962,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Steps_RunSequentially_InRegistrationOrder",
+          "Status": "Passed",
+          "Duration": 0.0001431,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Tests.ZsBootstrapTests.Tracker_DefaultsToNoOp_ReplaceableViaRegister",
+          "Status": "Passed",
+          "Duration": 0.0000948,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.AndroidManifestInjectorTests.Inject_AddsMetaDataWhenMissing",
+          "Status": "Passed",
+          "Duration": 0.0002663,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.AndroidManifestInjectorTests.Inject_ReplacesExistingValue",
+          "Status": "Passed",
+          "Duration": 0.0002574,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.InstalledScannerTests.Records_RoundTrip",
+          "Status": "Passed",
+          "Duration": 0.0000586,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.InstalledScannerTests.Resolve_RecordAndFilesPresent",
+          "Status": "Passed",
+          "Duration": 0.0000518,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.InstalledScannerTests.Resolve_ImportedByHand",
+          "Status": "Passed",
+          "Duration": 0.0000452,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.InstalledScannerTests.Resolve_StaleRecord",
+          "Status": "Passed",
+          "Duration": 0.0000406,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.InstalledScannerTests.Resolve_NotInstalled",
+          "Status": "Passed",
+          "Duration": 0.0000392,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkCatalogTests.FromJson_ParsesEntries",
+          "Status": "Passed",
+          "Duration": 0.0001336,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkCatalogTests.RealCatalog_LoadsAndIsConsistent",
+          "Status": "Passed",
+          "Duration": 0.0008591,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.BuildIdentifier_UpmRegistry",
+          "Status": "Passed",
+          "Duration": 0.0000517,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.BuildUrl_UnityPackage",
+          "Status": "Passed",
+          "Duration": 0.0000426,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.BuildUrl_Zip",
+          "Status": "Passed",
+          "Duration": 0.00004,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.LocalPath_IsVersionedPerEntry",
+          "Status": "Passed",
+          "Duration": 0.0005549,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.PathsToDelete_Edm4UOwnsItsOwnFolder",
+          "Status": "Passed",
+          "Duration": 0.0000969,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.SdkInstallerTests.PathsToDelete_KeepsSharedResolverForOtherSdks",
+          "Status": "Passed",
+          "Duration": 0.0000772,
+          "Message": null,
+          "StackTrace": null
+        },
+        {
+          "FullName": "ZsSdk.Editor.Tests.UnityPackageExtractorTests.Extract_WritesAssetsMetasAndFolders",
+          "Status": "Passed",
+          "Duration": 0.009098,
+          "Message": null,
+          "StackTrace": null
+        }
+      ],
+      "Duration": 4.24,
+      "StatusPath": "Temp/pipeline_test_status.json",
+      "Mode": "All",
+      "FilterApplied": null,
+      "success": true,
+      "command": "run_tests",
+      "result": "playmode_running",
+      "executionTimeMs": 4237,
+      "message": "EditMode complete: 55/57 passed. PlayMode tests started asynchronously — poll the test_status command for their results.",
+      "error": null,
+      "errorDetails": null,
+      "executedAt": "0001-01-01T00:00:00"
+    },
+    "target": {
+      "host": "127.0.0.1",
+      "port": 7800,
+      "projectPath": "C:\\Users\\Zasuo\\Desktop\\Project\\Unity\\Funny Jigsaw"
+    },
+    "success": true
+  },
+  "errors": [],
+  "warnings": []
+}

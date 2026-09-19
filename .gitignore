@@ -1,0 +1,13 @@
+# Build output
+/bin/
+/utk
+*.exe
+
+# Go
+*.test
+*.out
+
+# Local design docs (not published)
+
+# OS / editor cruft
+.DS_Store
