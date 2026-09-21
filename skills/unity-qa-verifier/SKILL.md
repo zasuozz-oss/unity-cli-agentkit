@@ -12,7 +12,7 @@ Classify test results from log text (NUnit, PHPUnit, or manual test notes) into 
 - Classify results from NUnit/PHPUnit log output
 - Classify manual test notes
 - Identify flaky tests (inconsistent pass/fail)
-- **Do NOT use when:** need to write tests → use `@unity-qa-generator` or `@automated-unit-testing`
+- **Do NOT use when:** need to write tests → use `@unity-qa-generator` or `@unity-editmode-tests`
 
 ## Best Practices
 - ✅ Map every TC ID to exactly one status
