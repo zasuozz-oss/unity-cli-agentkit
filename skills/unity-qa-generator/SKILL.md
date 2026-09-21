@@ -12,7 +12,7 @@ Generate high-quality test cases + developer test code (NUnit/PHPUnit) from feat
 - Generate TCs from feature plan (output of `@unity-qa-parser`)
 - Generate TCs directly from source code
 - Produce developer test code (Unity C# NUnit, PHP PHPUnit)
-- **Do NOT use when:** writing 1-2 specific unit tests → use `@automated-unit-testing`
+- **Do NOT use when:** writing 1-2 specific unit tests → use `@unity-editmode-tests`
 
 ## Best Practices
 - ✅ Cover both happy paths AND edge cases
@@ -162,4 +162,4 @@ public function post_auth_google_valid_token_returns_session(): void
 - `@unity-qa-parser` — Parse documents/code before generating TCs
 - `@unity-qa-verifier` — Classify test results
 - `@unity-qa-scorer` — Detailed TC quality scoring
-- `@automated-unit-testing` — Write specific unit tests (NUnit)
+- `@unity-editmode-tests` — Write specific EditMode/NUnit tests

@@ -88,5 +88,4 @@ android {
 ```
 
 ## Related Skills
-- `@rtk-run` - For executing gradle build commands locally without sandboxing issues.
-- `@automated-unit-testing` - For running unit tests prior to launching builds.
+- `@utk-test-runner` - For compiling and running the project's tests before launching a build.
