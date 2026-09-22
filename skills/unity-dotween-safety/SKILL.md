@@ -302,3 +302,4 @@ public void StopPulse() => _pulseTween.Pause();
 ## Related Skills
 - `@unity-async-patterns` - Async/await with CancellationToken
 - `@unity-ui-performance` - UI performance and state safety
+- `@unity-ui-motion-tuning` - Authoring and tuning the motion itself: scrubbing a sequence, live-tunable timings, DOTween from a utk exec snippet

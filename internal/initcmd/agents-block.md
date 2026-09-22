@@ -98,7 +98,7 @@ The six above cover *driving* the Editor. `utk init` also installs advisory
 Unity skills covering *what to write* — they activate from their own
 descriptions, so consult them by topic rather than listing them here:
 
-- `unity-*` — C# standards, uGUI layout, UI performance, async/UniTask, DOTween safety, event safety, Addressables, asset audit, editor tooling, EditMode tests, Android builds, social auth, telemetry, Spine UI, panel navigation, scrollview recycling, startup/loading, texture pipeline, bug-regression workflow
+- `unity-*` — C# standards, uGUI layout, UI performance, async/UniTask, DOTween safety, UI motion tuning, event safety, Addressables, asset audit, editor tooling, EditMode tests, Android builds, social auth, telemetry, Spine UI, panel navigation, scrollview recycling, startup/loading, texture pipeline, bug-regression workflow
 - `unity-urp-*` / `unity-3d-*` — URP asset & rendering path, Render Graph renderer
   features, shader authoring & SRP Batcher, 3D lighting/lightmaps/APV, 3D
   rendering performance, model import pipeline
