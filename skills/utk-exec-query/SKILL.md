@@ -40,6 +40,11 @@ most frequent failures after the three above:
   enum: `UnityEngine.Object.FindAnyObjectByType<T>(UnityEngine.FindObjectsInactive.Include)`.
 - **`UniTask<T>` has no `.Forget()`** — only the non-generic `UniTask` does.
   `await` it, or discard the result first.
+- **`dynamic` does not compile** (`Missing compiler required member
+  'Microsoft.CSharp.RuntimeBinder…'`) — the binder assembly is not referenced,
+  in `exec` or `run_script`. Use `object` and cast, or reflection.
+- **Scene APIs are mode-specific** — `EditorSceneManager` in edit mode,
+  `SceneManager` in play mode; the wrong one throws. See utk-playmode-driving.
 
 `utk` drops the "Unreachable code detected" warning every failed compile
 carries: the wrapper appends its own `return` after your body, so it is never
@@ -103,6 +108,7 @@ editor loop is pumping. Typical timeout causes, in order of likelihood:
 
 - **Editor backgrounded** — the OS throttles an unfocused Unity (macOS App
   Nap especially). Keep the Unity window focused/visible during agent runs.
+  In play mode, step frames yourself instead (utk-playmode-driving).
 - **Modal dialog or progress bar** open in the editor.
 - **Script compilation / domain reload** in progress — in-flight requests are
   dropped; just retry after it settles.
@@ -113,6 +119,10 @@ than retrying a timeout. utk routes the one value to both the CLI transport
 and the eval tool, so never pass a raw `unity command eval --timeout` yourself:
 the CLI keeps that flag (in seconds) and the tool falls back to its enforced
 5000ms default.
+
+`run_script` is an official tool, not a utk verb, and has its own budget:
+`--timeout_ms` (default 30000). A batch job over hundreds of assets needs
+`--timeout_ms 300000`; `--timeout` does not apply to it.
 
 ### Fire-and-forget async stalls, and lies about it
 

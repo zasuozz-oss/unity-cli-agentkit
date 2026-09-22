@@ -123,7 +123,22 @@ the compile), then `utk list --grep <name>` to confirm it registered.
 There is no lease/lock — the Editor serializes every command on its main
 thread, so keep **one** Unity-touching agent active at a time and batch work
 into single `utk exec` snippets instead of fanning out. Keep the Unity window
-focused; a backgrounded editor is throttled by the OS.
+focused; a backgrounded editor is throttled by the OS (`utk set_autotick` on
+pipeline 0.7+ — see utk-playmode-driving).
+
+The lock gap also covers **files**: two agents writing the same level/asset
+files overwrite each other with no error at all. Split ownership up front
+(separate ID ranges or folders per agent), and have the validator check for
+duplicate IDs. Errors in the console that your change could not have caused
+may be another agent's — check before "fixing" them.
+
+## "Command Not Found" usually means a version mismatch
+The `utk` binary and the project's `com.unity.pipeline` evolve together —
+a tool renamed on one side (e.g. `get_console_logs` → `console` in pipeline
+0.7) fails on every call with `Command Not Found`. Don't retry it and don't
+route around it: `utk status` for the pipeline version, `utk list --grep <word>`
+for the current name, then update whichever side is behind (rebuild `utk`, or
+`unity pipeline install --package-version <v>`).
 
 ## Setup
 First time in a project, run `utk init` from the project root: it installs

@@ -6,12 +6,12 @@ description: Use when generating QA test cases, edge cases, regression checks, o
 # QA Test Case Generator
 
 ## Overview
-Generate high-quality test cases + developer test code (NUnit/PHPUnit) from feature plans or source code. Each TC is scored on 4 criteria for quality assessment.
+Generate high-quality test cases + developer test code (NUnit, plus the backend's own test framework) from feature plans or source code. Each TC is scored on 4 criteria for quality assessment.
 
 ## When to Use
 - Generate TCs from feature plan (output of `@unity-qa-parser`)
 - Generate TCs directly from source code
-- Produce developer test code (Unity C# NUnit, PHP PHPUnit)
+- Produce developer test code (Unity C# NUnit; backend tests in the backend's framework)
 - **Do NOT use when:** writing 1-2 specific unit tests → use `@unity-editmode-tests`
 
 ## Best Practices
@@ -27,7 +27,7 @@ Generate high-quality test cases + developer test code (NUnit/PHPUnit) from feat
 
 | Param | Options | Default |
 |-------|---------|---------|
-| Platform | `unity_csharp` \| `php` \| `both` | `both` |
+| Platform | `unity_csharp` \| `backend` \| `both` | `both` |
 | Priority focus | `all` \| `p0_only` \| `p0_p1` | `all` |
 | Team size | `1-3` \| `5-10` \| `10+` | `5-10` |
 | TC count | number | `10` |
@@ -37,7 +37,7 @@ Generate high-quality test cases + developer test code (NUnit/PHPUnit) from feat
 **System:**
 ```
 You are a Senior QA Engineer with 5+ years of mobile game experience.
-Expert in Unity C# (NUnit) and PHP (PHPUnit).
+Expert in Unity C# (NUnit) and in testing the game backend with its own framework.
 Task: Generate high-quality test cases covering happy paths and edge cases.
 Score each TC on 4 criteria: coverage, severity, automation_ready, manual_priority.
 Return markdown following the template. Do NOT add explanations.
@@ -61,7 +61,7 @@ For each TC, provide:
 - Preconditions, Steps, Expected Result, Test Data
 - Scores: coverage (1-10), severity (1-10), automation (1-10), manual (1-10)
 - Unity C# test code (if automation_ready)
-- PHP test code (if automation_ready)
+- Backend test code in the backend's framework (if automation_ready)
 ```
 
 ## TC ID Convention
@@ -104,7 +104,7 @@ TC-[FEATURE_CODE]-[TYPE_CODE]-[NUMBER]
 
 ## Few-Shot Examples
 
-### Example 1: Generate TC with NUnit + PHPUnit
+### Example 1: Generate TC for client and backend
 **User**: "Generate test cases for login feature."
 
 **Agent**:
@@ -144,19 +144,9 @@ public void LoginSuccess_ValidToken_EntersMainMenu()
 }
 ```
 
-```php
-/** @test */
-public function post_auth_google_valid_token_returns_session(): void
-{
-    $this->mockGoogleOAuth(['email' => 'valid@gmail.com']);
-    $response = $this->postJson('/api/auth/google', [
-        'google_token' => 'valid_mock_token',
-    ]);
-
-    $response->assertStatus(200);
-    $response->assertJsonStructure(['session_id', 'player_data']);
-}
-```
+Backend test (`POST /api/auth/google` with a mocked valid token → 200 with
+`session_id` and `player_data`) goes in whatever framework the backend repo
+already uses — find it first, never assume one.
 
 ## Related Skills
 - `@unity-qa-parser` — Parse documents/code before generating TCs
