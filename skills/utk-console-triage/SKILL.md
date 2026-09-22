@@ -47,6 +47,14 @@ loop in utk-cli-core (read the errors from `Logs/Editor.log` instead).
   data is ever silently dropped.
 
 ## Before you fix
+**Take a baseline before your change.** A project often carries errors that
+are not yours — a plugin missing a platform module, another agent's
+exception. Run `utk editor refresh` / `utk console --type error` once before
+editing and note what is already red; afterwards, compare against that list.
+Otherwise every refresh reads "failed", the real new error hides among the old
+ones, and each session re-diagnoses the same pre-existing noise. Report the
+baseline errors once; don't fix them uninvited.
+
 Open the relevant `file:line` and read it — never propose a fix from a guess.
 Fix the **first** grouped error first: the ones under it are usually its
 fallout and disappear with it. Don't address each line separately.

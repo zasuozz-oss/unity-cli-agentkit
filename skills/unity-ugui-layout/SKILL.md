@@ -20,7 +20,7 @@ description: "Use when building Unity uGUI layout: Canvas Scaler reference resol
 |---|---|
 | Canvas Scaler mode | Scale With Screen Size |
 | Reference resolution | [PROJECT_REF_WIDTH] × [PROJECT_REF_HEIGHT] |
-| Match Width Or Height | [PROJECT_MATCH_VALUE] — see note below |
+| Match Width Or Height | **1** (default) — change only for a reason below |
 
 **Match = 0 (Width):** Scale driven by width. Height stretches freely.
 Use for landscape games or fixed-width layouts.
@@ -31,8 +31,72 @@ Use for portrait mobile games. `sizeDelta.x` must be 0 on stretch-anchored eleme
 **Match = 0.5 (Blend):** Both axes influence scale.
 Use for multi-orientation or tablet-first layouts.
 
-> Replace `[PROJECT_REF_WIDTH]`, `[PROJECT_REF_HEIGHT]`, `[PROJECT_MATCH_VALUE]`
-> with the actual project values before using this skill.
+> Replace `[PROJECT_REF_WIDTH]`, `[PROJECT_REF_HEIGHT]` with the actual project
+> values before using this skill. Match stays `1` unless the project already
+> sets something else — then keep the project's value, don't "fix" it to 1.
+
+### Match: default 1
+
+A Figma/mockup frame is **one** aspect ratio. Every match value reproduces it
+exactly at that aspect and nowhere else, so the choice is which axis must never
+overflow. **Default to `1`**: height is fixed, width varies. On a phone
+narrower than the frame, anything wider than the screen clips — anchor wide
+elements with stretch, never fixed width.
+
+Leave `1` only when the user or the project says so:
+
+- Landscape, or a layout that is wide rows (a board, a grid) that must fit the
+  width → `0`. Height then varies: check the shortest device for overflow.
+- `0.5` is exact on neither axis off the frame's aspect — never pick it
+  yourself as a "neutral" value.
+
+Whatever the value, pin it with an EditMode
+test that loads the scene/prefab and asserts `referenceResolution` and
+`matchWidthOrHeight` — a later import or rebuild script silently resets them.
+
+### HUD scaling across aspects
+
+One match value fits every region only at the frame's own aspect. Elsewhere the
+canvas has spare room on the axis the match leaves free (height at `0`, width at
+`1`), and a HUD sized for the frame comes out too small on one device class and
+outgrows its row on another. When a region (top bar, bottom bar, booster tray)
+is wrong on some aspect, scale **that region's root**, not the whole canvas:
+
+```csharp
+// On the region root. free = canvas size on the axis match leaves free,
+// designFree = the frame's size on that axis, cap = largest scale that still fits the row.
+float s = Mathf.Min(cap, free / designFree);
+regionRoot.localScale = new Vector3(s, s, 1f);   // uniform — never x ≠ y
+```
+
+Recompute it on `OnRectTransformDimensionsChange` of the canvas, not once in
+`Start`, or rotating / resizing the Game view keeps the old scale.
+
+- One cap per region, chosen by screenshotting the narrowest and widest target
+  aspect (e.g. 9:20 and 3:4) — the reference aspect alone proves nothing.
+- Scale the region root only. Scaling individual children breaks their
+  spacing; a non-uniform scale squashes every sprite under it.
+
+---
+
+## Sprites keep their aspect
+
+A `Simple` `Image` draws its sprite stretched to the rect. When the rect's
+aspect differs from the sprite's, the art is distorted — a round button in a
+wide rect becomes an oval. The most common source is a build script **reusing
+one element's sprite for another element of a different shape** (a square icon
+background on a wide chip).
+
+| Rect vs sprite | Use |
+|---|---|
+| same aspect (±4%) | `Simple` |
+| different aspect, art must not deform (icon, avatar, logo) | `Simple` + `preserveAspect = true` |
+| different aspect, a panel/button/bar meant to stretch | `Sliced` with a border measured from the sprite's pixels |
+| no sprite of the right shape exists | export one, or ask — never borrow another element's sprite |
+
+Check with the distortion audit in `unity-figma-cli` (Verify → "Distortion
+audit") after any build script runs — a screenshot at one resolution misses
+this.
 
 ---
 
@@ -144,7 +208,7 @@ public static class UILayoutSpec
     private const float REF_H = [PROJECT_REF_HEIGHT];
 
     // Canvas match value: 0 = width, 1 = height, 0.5 = blend
-    private const float MATCH = [PROJECT_MATCH_VALUE];
+    private const float MATCH = 1f;
 
     // Scale factor — use to convert authored px to screen px at runtime
     public static float Scale =>
@@ -262,6 +326,8 @@ UILayoutSpec.ApplySafeArea(GetComponent<RectTransform>());
 | `transform.localPosition` to move UI elements | Bypasses RectTransform layout system |
 | `anchorMin == anchorMax == (0.5,0.5)` on non-center elements | Position drifts at other resolutions |
 | Inventing sizes without a reference | Always extract from image or ask the user |
+| `Simple` Image whose rect aspect differs from its sprite's | Art deforms — `preserveAspect`, 9-slice, or the right sprite |
+| Non-uniform `localScale` (x ≠ y) on UI | Squashes every child sprite and text |
 
 ---
 
@@ -285,3 +351,4 @@ Center-fixed:       anchorMin=(0.5,0.5) anchorMax=(0.5,0.5) pivot=(0.5,0.5)
 ## Related Skills
 - `@unity-ui-performance` — Canvas rebuild optimization, raycast target cleanup, scroll view recycling after layout is built
 - `@unity-csharp-standards` — Naming conventions and coding rules for UI scripts
+- `@unity-figma-cli` — building this layout from a Figma frame, and the distortion audit

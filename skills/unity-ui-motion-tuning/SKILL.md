@@ -6,8 +6,8 @@ description: "Use when authoring or tuning a Unity UI animation — a DOTween se
 # Unity UI Motion — Tune It Without Recompiling
 
 Tuning motion is a search for numbers a human judges by eye. The cost is not
-the edit, it is the round-trip. Measured over one popup's animation in a real
-project (`StyleStreakCelebrationPopup`, three sessions):
+the edit, it is the round-trip. Measured over one celebration popup's animation
+in a real project (three sessions):
 
 | Session | `utk editor refresh` | `utk screenshot` |
 |---|---|---|
@@ -31,17 +31,17 @@ Put the numbers a human will argue about in one place as **`public static`**
 fields (not `readonly`) and the whole sweep costs no compiles:
 
 ```csharp
-// SDU.StyleStreak/StreakMotion.cs — tunables, not constants
-public static class StreakMotion
+// MyGame.UI/PopupMotion.cs — tunables, not constants
+public static class PopupMotion
 {
-    public static float GiftHop      = 0.47f;  // the value 15 round-trips found
-    public static float GiftPeakAt   = 0.5f;
-    public static float GiftHopPower = 260f;
+    public static float IconHop      = 0.47f;  // the value 15 round-trips found
+    public static float IconPeakAt   = 0.5f;
+    public static float IconHopPower = 260f;
 }
 ```
 
 ```bash
-utk exec 'SDU.StyleStreak.StreakMotion.GiftHop = 0.45f; return SDU.StyleStreak.StreakMotion.GiftHop;'
+utk exec 'MyGame.UI.PopupMotion.IconHop = 0.45f; return MyGame.UI.PopupMotion.IconHop;'
 ```
 
 Keep `const` for anything the design does not tune (a physical ratio, an index).

@@ -6,10 +6,10 @@ description: Use when classifying QA execution results, comparing expected versu
 # QA Test Verifier
 
 ## Overview
-Classify test results from log text (NUnit, PHPUnit, or manual test notes) into 5 statuses. Output feeds into `@unity-qa-scorer`.
+Classify test results from log text (NUnit, the backend's test runner, or manual test notes) into 5 statuses. Output feeds into `@unity-qa-scorer`.
 
 ## When to Use
-- Classify results from NUnit/PHPUnit log output
+- Classify results from NUnit or backend test-runner output
 - Classify manual test notes
 - Identify flaky tests (inconsistent pass/fail)
 - **Do NOT use when:** need to write tests → use `@unity-qa-generator` or `@unity-editmode-tests`

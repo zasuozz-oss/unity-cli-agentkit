@@ -75,6 +75,26 @@ error, an expired license, the SIGABRT above. Retry a 6; never retry an 8.
 Requires the Unity Test Framework package. PlayMode tests reload the domain —
 let the run finish.
 
+**Stop play mode first.** With the Editor in play mode, a queued compile waits
+for it to end, so `run_tests` (and `editor refresh`) hang to their timeout
+instead of failing: `utk editor stop; utk editor refresh && utk run_tests …`.
+
+## Tests share the Editor
+
+`run_tests` runs inside the Editor the user may be playing in, against the
+same PlayerPrefs, save files and static singletons. A test that calls
+`PlayerPrefs.DeleteKey`/`DeleteAll` in `SetUp`/`TearDown` wipes the user's real
+progress on every run — this happened, silently, for a whole session.
+
+```csharp
+string _saved; bool _had;
+[SetUp]    public void SetUp()    { _had = PlayerPrefs.HasKey(Key); _saved = PlayerPrefs.GetString(Key); }
+[TearDown] public void TearDown() { if (_had) PlayerPrefs.SetString(Key, _saved); else PlayerPrefs.DeleteKey(Key); }
+```
+
+Snapshot every global a test touches and restore it; never `DeleteAll`. A test
+that needs a clean slate uses its own key prefix, not the game's.
+
 ## Stale results trap (Auto Refresh off)
 
 With Auto Refresh **off**, a test run can silently execute the **previously

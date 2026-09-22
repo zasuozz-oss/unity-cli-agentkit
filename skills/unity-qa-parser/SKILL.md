@@ -6,18 +6,18 @@ description: Use when turning QA documents, feature specs, acceptance criteria, 
 # QA Document & Code Parser
 
 ## Overview
-Parse feature documents (MD/PDF/Word/Notion/Figma) or source code (C#/PHP) into structured feature plans (markdown). Output feeds into `@unity-qa-generator`.
+Parse feature documents (MD/PDF/Word/Notion/Figma) or source code (C# client, backend in any language) into structured feature plans (markdown). Output feeds into `@unity-qa-generator`.
 
 ## When to Use
 - Parse feature documents into structured plans
-- Read existing C#/PHP code to extract logic, dependencies, edge cases
+- Read existing client/backend code to extract logic, dependencies, edge cases
 - Supplement documentation with insights from newly completed code
 - **Do NOT use when:** feature plan already exists → use `@unity-qa-generator` directly
 
 ## Best Practices
 - ✅ Include both happy paths AND edge cases from the source
 - ✅ Extract API endpoints with method, path, description
-- ✅ Identify platform scope (Unity client, PHP backend, or both)
+- ✅ Identify platform scope (Unity client, backend, or both)
 - ✅ Rate complexity to guide test case count
 - ❌ **NEVER** auto-save output files without explicit user request
 - ❌ **NEVER** omit edge cases — they are critical for QA coverage
@@ -27,13 +27,13 @@ Parse feature documents (MD/PDF/Word/Notion/Figma) or source code (C#/PHP) into 
 | Mode | Input | Use For |
 |------|-------|---------|
 | **From Document** | MD/PDF/Word/Notion/Figma | Feature spec parsing |
-| **From Code** | C#/PHP source files | Extracting logic + edge cases to supplement docs |
+| **From Code** | Client/backend source files | Extracting logic + edge cases to supplement docs |
 
 ## Prompt — From Document
 
 **System:**
 ```
-You are a QA Analyst specializing in mobile games (Unity C# client + PHP backend).
+You are a QA Analyst specializing in mobile games (Unity C# client + a server backend).
 Task: Analyze feature documents and extract structured information.
 Return markdown following the template. Do NOT add explanations.
 ```
@@ -67,7 +67,7 @@ OUTPUT FORMAT (markdown):
 
 ## Platforms
 - [ ] Unity Client
-- [ ] PHP Backend
+- [ ] Backend
 
 ## Complexity: low|medium|high
 ```
@@ -76,7 +76,7 @@ OUTPUT FORMAT (markdown):
 
 **System:**
 ```
-You are a QA Analyst specializing in mobile games (Unity C# client + PHP backend).
+You are a QA Analyst specializing in mobile games (Unity C# client + a server backend).
 Task: Read source code and extract logic, dependencies, edge cases
 to supplement the feature plan.
 Return markdown following the template. Do NOT add explanations.
@@ -111,7 +111,7 @@ OUTPUT FORMAT: (same template as From Document)
 - Player
 - Auth Server
 - Unity Client
-- PHP Backend
+- Backend
 
 ## Happy Paths
 ### Standard login flow
@@ -120,7 +120,7 @@ OUTPUT FORMAT: (same template as From Document)
 3. Google OAuth popup appears
 4. Player selects account and approves
 5. App receives access token
-6. PHP backend validates token and creates session
+6. Backend validates token and creates session
 7. Unity client receives session_id and player_data
 8. Player enters main menu
 
@@ -144,7 +144,7 @@ OUTPUT FORMAT: (same template as From Document)
 
 ## Platforms
 - [x] Unity Client
-- [x] PHP Backend
+- [x] Backend
 
 ## Complexity: medium
 ```

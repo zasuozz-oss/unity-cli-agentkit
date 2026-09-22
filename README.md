@@ -310,6 +310,7 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 | `utk-console-triage` | Reading, triaging, and fixing console errors |
 | `utk-exec-query` | Inspecting/changing runtime state via `utk exec` |
 | `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests |
+| `utk-playmode-driving` | Driving Play mode unattended: autotick, `wait_for`, frame stepping, Game view size |
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
 

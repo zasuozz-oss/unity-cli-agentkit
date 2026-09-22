@@ -11,7 +11,7 @@ Guidelines for managing Google and Facebook OAuth logins, checking network state
 ## When to Use
 - Adding or modifying social authentication buttons/scenes.
 - Implementing logic for linking/unlinking social media accounts to a guest profile.
-- Handling popup displays when OAuth fails or if the account is already bound to another profile (`LinkAccountFailedAlreadyLinked`).
+- Handling popup displays when OAuth fails or if the account is already bound to another profile.
 - Resolving network timeouts or "no internet connection" alerts during auth.
 
 ## Key Concepts
@@ -19,7 +19,7 @@ Guidelines for managing Google and Facebook OAuth logins, checking network state
 | Concept | Description |
 |---------|-------------|
 | **Link/Unlink State** | Displaying whether an account is currently linked (e.g. grayed out, checkmark, or change button label). |
-| **LinkAccountFailedAlreadyLinked** | A core error code signifying that the social account is already attached to another game profile. |
+| **Already-linked error** | The backend's error for a social account already attached to another game profile. Its name and code are project-specific — find the real one, don't assume one from an example. |
 | **Social Login Popup** | Unified UI component that presents login options (Google, FB, Guest) and handles callbacks. |
 | **Social Auth Error Handler** | System that converts raw OAuth/Firebase exceptions into localized user-friendly popups. |
 | **Focus Helper Timeout** | Fallback MonoBehaviour that fires a cancel/failure callback when the native SDK callback is lost after app switching. |
@@ -80,7 +80,7 @@ public class SocialLoginController : MonoBehaviour
     {
         string message = code switch
         {
-            AuthErrorCode.LinkAccountFailedAlreadyLinked => "This Google/Facebook account is already linked to another game profile.",
+            AuthErrorCode.AlreadyLinked => "This Google/Facebook account is already linked to another game profile.",
             AuthErrorCode.NetworkTimeout => "Network timeout. Please try again.",
             _ => "An unexpected error occurred during login. Please try again."
         };

@@ -91,10 +91,11 @@ For deeper, task-specific guidance, see these skills:
 - `utk-console-triage` — reading and triaging console errors and warnings
 - `utk-exec-query` — inspecting or changing live state via `utk exec`
 - `utk-test-runner` — verifying C# compiles and running EditMode/PlayMode tests
+- `utk-playmode-driving` — driving Play mode unattended (unfocused Editor, waiting on a state, screenshots)
 - `utk-asset-edit` — editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor
 - `utk-asset-import` — bringing external files (images, audio, models) into the project by path, never base64
 
-The six above cover *driving* the Editor. `utk init` also installs advisory
+The seven above cover *driving* the Editor. `utk init` also installs advisory
 Unity skills covering *what to write* — they activate from their own
 descriptions, so consult them by topic rather than listing them here:
 
