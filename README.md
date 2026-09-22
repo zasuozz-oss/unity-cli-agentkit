@@ -313,7 +313,7 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
 
-…and 29 advisory skills, vendored from
+…and 31 advisory skills, vendored from
 [agentic-unity-skills](https://github.com/zasuozz-oss/antigravity-unity-skills),
 cover **what to write**. They carry their own activation descriptions, so an
 agent picks them up by topic:
