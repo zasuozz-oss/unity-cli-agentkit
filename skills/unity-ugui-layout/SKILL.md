@@ -147,7 +147,7 @@ For each UI element visible in the image:
 > Accent color (used for counts, highlights, CTAs) must be different from body color.
 
 ### Mandatory TMP rules (apply to every project)
-- `autoSizing = false` — never enable; font jumps unpredictably on container resize.
+- `autoSizing` off by default. Only for copy that changes (localisation, item names) in a fixed box: on, with `fontSizeMax` = design size and `fontSizeMin` ≈ 60 % — never unbounded (`unity-popup-layout` §4).
 - Text inside a Layout Group: add `LayoutElement.preferredHeight`; set `flexibleWidth=1` if stretch needed.
 - Multi-line text: `enableWordWrapping=true`, `alignment=Center` or `MidlineLeft` as appropriate.
 - Text inside a fixed container: `overflowMode=Truncate` or `Ellipsis`.
@@ -320,7 +320,7 @@ UILayoutSpec.ApplySafeArea(GetComponent<RectTransform>());
 | Forbidden | Reason |
 |---|---|
 | Multiple TMP with same fontSize for different visual roles | Destroys hierarchy — every role has its own size |
-| `autoSizing = true` on any TMP | Font jumps unpredictably on resize |
+| `autoSizing = true` without min/max bounds | Font jumps unpredictably on resize |
 | Non-zero `sizeDelta.x` on stretch-anchored elements | Breaks layout on non-reference screen widths |
 | Hardcoded `cellSize` in GridLayoutGroup | Use `GridCellSize()` instead |
 | Accent color used for non-accent text | Loses visual hierarchy signal |
