@@ -103,6 +103,7 @@ finally
   - Cross-check: verify `using` or `finally` block
   - Severity: 🟡 HIGH
 - [ ] `SetInteractable(false)` ↔ `SetInteractable(true)` on all paths
+- [ ] Raising a shared UI element's layer/sort order for an effect (e.g. a currency bar lifted above a reward fly-in) ↔ restoring it, in `OnDisable`/`finally` of the panel that raised it, not only on the success path (`@unity-popup-queue`)
 
 ---
 

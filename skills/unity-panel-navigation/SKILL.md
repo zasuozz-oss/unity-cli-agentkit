@@ -68,3 +68,4 @@ public class ItemDetailPanel : MonoBehaviour
 ## Related Skills
 - `@unity-event-safety` - Hook subscription/unsubscription hygiene.
 - `@unity-ugui-layout` - Panel canvas/layer setup.
+- `@unity-popup-queue` - Popups the game shows on its own: queue turns, one-time popups, layering.
