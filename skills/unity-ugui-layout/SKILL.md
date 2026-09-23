@@ -77,6 +77,10 @@ Recompute it on `OnRectTransformDimensionsChange` of the canvas, not once in
 - Scale the region root only. Scaling individual children breaks their
   spacing; a non-uniform scale squashes every sprite under it.
 
+A row that already **overlaps** on tall phones (9:21+ under match `1`) — two
+fixed-width groups pinned to opposite edges — is `@unity-ugui-aspect-overlap`:
+it computes the collision width and covers Expand vs a shrinking row.
+
 ---
 
 ## Sprites keep their aspect
