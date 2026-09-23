@@ -37,7 +37,7 @@ With `ScaleWithScreenSize` and match = 1 (height):
 canvasW = refH × screenAspect        // screenAspect = screenW / screenH
 ```
 
-Worked example, ref 720×1600: 9:23 → 626, 9:22 → 654, 9:20 → 720, 9:16 → 900,
+Illustration with a sample reference of 720×1600 (use the project's own): 9:23 → 626, 9:22 → 654, 9:20 → 720, 9:16 → 900,
 3:4 → 1200. For any other match value derive the formula from the scaler
 (`@unity-ugui-aspect-overlap` shows Expand and 0.5); do not reuse this one.
 
@@ -160,13 +160,64 @@ public sealed class FitWidthScaler : MonoBehaviour
 
 ### E. Popups whose show/hide helper tweens the panel's scale
 
-A helper that tweens `panel.localScale` to 1 overwrites the scaler every time.
+A helper that tweens `panel.localScale` to 1 overwrites any scaler on the
+panel. Never put `FitWidthScaler` on the animated panel.
 
-- Never put the scaler on the animated panel.
-- Insert a stretched wrapper (e.g. `FitFrame`) carrying the scaler between the
-  popup root and the panel — or inside the panel, reparenting its children.
-- The full-screen dim/mask stays **outside** the wrapper; scaled with it, it
-  leaves uncovered bands at the edges.
+**Preferred, when the project has a shared show/hide helper: tween to a
+resting scale instead of 1.** Add an opt-in component to the panel that is
+passed to the helper:
+
+```csharp
+[DisallowMultipleComponent, RequireComponent(typeof(RectTransform))]
+public class PopupFit : MonoBehaviour
+{
+    [SerializeField] float _designCanvasWidth = 720f; // canvas width at the design aspect — fill from the project
+
+    public float Scale
+    {
+        get
+        {
+            var c = GetComponentInParent<Canvas>();
+            if (c == null || _designCanvasWidth <= 0f) return 1f;
+            float w = ((RectTransform)c.rootCanvas.transform).rect.width;
+            return w > 0f ? Mathf.Min(1f, w / _designCanvasWidth) : 1f;
+        }
+    }
+
+    public static float ScaleFor(Component panel) =>
+        panel != null && panel.TryGetComponent(out PopupFit f) ? f.Scale : 1f;
+}
+```
+
+In the helper:
+- Show: `float fit = PopupFit.ScaleFor(panel); panel.localScale = Vector3.one * (ScaleInStart * fit); panel.DOScale(Vector3.one * fit, …)`.
+- Hide: `panel.DOScale(ScaleOutEnd * PopupFit.ScaleFor(panel), …)`.
+
+Why it beats a wrapper:
+- The prefab diff is one component. There is no extra GameObject, and the
+  dim/backdrop needs no special handling.
+- A panel without the component behaves exactly as before.
+
+Notes:
+- **Keep it opt-in**, never automatic for every helper call. Some panels passed
+  to the helper are full-screen or already responsive (e.g. a panel embedded
+  in another screen), and auto-scaling those breaks them.
+- Keep `FitWidthScaler` for blocks that are *not* animated. It measures its own
+  stretched rect; `PopupFit` measures the root canvas.
+- `ponytail:` the scale is read only when a show or hide starts, so a canvas
+  resize while the popup is open is not followed. That does not matter on
+  phones. If it ever does, add an `OnRectTransformDimensionsChange` hook.
+
+**Fallback, with no shared helper:** insert a stretched wrapper (e.g.
+`FitFrame`) that carries `FitWidthScaler`, between the popup root and the
+panel (or inside the panel, reparenting its children). The full-screen
+dim/mask stays **outside** the wrapper; scaled with it, it leaves uncovered
+bands at the edges.
+
+**Migrating FitFrame → PopupFit:** move the frame's children back to the
+frame's parent at the frame's sibling index, add `PopupFit` to the animated
+panel, and destroy the frame. Re-measure at narrow, design and wide. The
+numbers must match the FitFrame ones at every width.
 
 ### F. Parts inside shrunk cells stay fixed and stick out
 
@@ -269,8 +320,9 @@ child container instead of recomputing the ratio a second time.
 
 1. Parameters read (section 0) and the list of affected screens.
 2. Fix one screen at a time. Reuse the project's existing helpers first; add at
-   most the two generic components above (`NarrowScreenPadding`,
-   `FitWidthScaler`), in the project's common UI folder.
+   most the generic components above (`NarrowScreenPadding`,
+   `FitWidthScaler`, and `PopupFit` when a shared popup helper exists), in the
+   project's common UI folder.
 3. Report a per-screen table, then the skipped screens:
 
 | Screen | Element | Narrow before | Narrow after | Design before → after | Wide before → after |

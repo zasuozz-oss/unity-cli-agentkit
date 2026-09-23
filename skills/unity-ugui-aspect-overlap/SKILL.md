@@ -23,7 +23,7 @@ canvasH = refH
 canvasW = refH * (screenW / screenH)
 ```
 
-Worked example, reference 720×1600 (9:20):
+Illustration with a sample reference of 720×1600 (9:20); use the project's own:
 
 | Aspect | 9:16 | 9:20 (ref) | 9:21 | 9:22 | 9:23 | 9:24 |
 |---|---|---|---|---|---|---|
@@ -50,8 +50,9 @@ minRequiredWidth = leftGroupRightEdge + rightGroupSpan + gap
 
 The row is broken on every aspect where `canvasW < minRequiredWidth`.
 
-Worked example: a left element whose right edge sits at x≈240, and three
-fixed-width pills whose group starts 419 units from the right edge.
+Illustration (sample numbers, not from any project): a left group whose right
+edge sits at x≈240, and a right group that starts 419 units from the right
+edge.
 `240 + 419 = 659` → they collide once `canvasW < 659`, i.e. from about 9:22
 (654), and 9:21 (686) survives.
 

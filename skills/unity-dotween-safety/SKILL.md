@@ -55,6 +55,12 @@ Rule: `DOKill(target)` kills **every** tween on that target, including ones
 another component owns. Kill your own tween reference (or a tween id), never
 the transform, whenever a second component animates the same transform.
 
+The same failure exists beyond buttons: whenever two tweens or animation phases
+can be live on one target (an enter and an exit animation, an idle loop plus a
+punch), killing leaves the value wherever the **other** tween left it, not
+at the start value. Give each phase its own handle, and set the value you want
+explicitly after a kill instead of assuming it.
+
 ## LinkBehaviour Options
 
 `.SetLink(gameObject)` defaults to `KillOnDestroy`. Other options:

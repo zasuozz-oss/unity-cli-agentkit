@@ -19,8 +19,7 @@ guard even sits on the path you reproduce.
 
 ## 1. Know the mechanisms
 
-Each row comes from a real shipped bug. The report rarely names the mechanism,
-so match the symptom.
+The report rarely names the mechanism, so match the symptom.
 
 | Symptom | Mechanism |
 |---|---|
@@ -38,8 +37,8 @@ so match the symptom.
 
 ## 2. Pre-flight — or the repro lies
 
-Check these before the first tap. Each one has produced false observations in
-a real session.
+Check these before the first tap. Skipping any of them produces false
+observations.
 
 - **Enter Play Mode Options with domain reload off.** Check
   `EditorSettings.enterPlayModeOptionsEnabled` and `enterPlayModeOptions`. With
@@ -48,15 +47,14 @@ a real session.
   suspect statics in edit mode before every play.
   - A bug the user "spammed" in the Editor after several plays may be
     **Editor-only leaked state**, seeded by earlier plays, including the agent's
-    own test runs. Real case: a leftover skip flag from the previous play sent
-    the next Buy into a step that sets no blocking flag, so a dialog stacked on
-    another panel. Before accepting such a report, prove or rule out the leak:
+    own test runs. A leftover skip or step flag from the previous play can send
+    the next input into a step that behaves differently, and the result looks
+    like a spam bug. Before accepting such a report, prove or rule out the leak:
     inject the suspected stale state on a clean play and see whether it
-    reproduces. After the fix, confirm that a second play starts clean. That
-    much was proven in the real case. Recommended but not done there: run a
-    Player build, which starts every launch with fresh statics, and confirm it
-    does not show the bug. Without that build, "Editor-only" is an inference
-    from the code.
+    reproduces, then confirm that a second play starts clean after the fix. To
+    claim "Editor-only", also run a Player build (fresh statics every launch)
+    and confirm it does not show the bug. Without the build, "Editor-only" is an
+    inference from the code, so say so.
   - Look for singletons with `if (IsInitialized) return;` in `Init()`. With
     domain reload off, they carry their whole context across plays.
   - The fix is `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]`
@@ -149,8 +147,7 @@ canvases need `canvas.worldCamera` in `RectTransformUtility.WorldToScreenPoint`.
 **Region spam first.** Use several seeds over boxes: around the reported
 control, around what the flow shows next, and the full screen. It is cheap,
 and it finds candidates. It is **not** proof of absence: a race window of one
-frame can survive hundreds of random taps (measured: ~200 taps × 4 seeds never
-hit a real ≤16 ms window). Treat "random spam did not break it" as "no
+frame (≈16 ms) can survive hundreds of random taps over several seeds. Treat "random spam did not break it" as "no
 evidence", never as "not reproducible".
 
 ### Rung 2 — directed tap sequences for a known candidate
@@ -200,7 +197,7 @@ there.
 - **Absorbing off-sequence input needs care.** Advancing through the missed
   step instead of ignoring the click is right, **but** absorbing by *setting a
   blocking flag* is only safe if no other path can skip that flag's release
-  step. In a real case, the absorb branch was half of the deadlock.
+  step. Otherwise the absorb branch becomes one half of a deadlock.
 - **Safety valves must be precise.** `WaitUntil(() => !flag ||
   !flowStillRunning)` does not help when the flow survives past the releasing
   step. Valve on "the release step is no longer ahead", or clear the flag

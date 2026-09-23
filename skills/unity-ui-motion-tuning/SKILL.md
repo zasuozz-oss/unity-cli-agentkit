@@ -6,17 +6,9 @@ description: "Use when authoring or tuning a Unity UI animation — a DOTween se
 # Unity UI Motion — Tune It Without Recompiling
 
 Tuning motion is a search for numbers a human judges by eye. The cost is not
-the edit, it is the round-trip. Measured over one celebration popup's animation
-in a real project (three sessions):
-
-| Session | `utk editor refresh` | `utk screenshot` |
-|---|---|---|
-| A | 584 | 189 |
-| B | 218 | 6 |
-| C | 228 | 7 |
-
-Sessions B and C recompiled ~220 times each and looked at the result seven
-times — every value came back from the user ("still too fast", "0.45", "0.47").
+the edit, it is the round-trip. The typical failure: hundreds of recompiles, and
+the agent looking at its own result only a handful of times, so every value
+comes back from the user ("still too fast", "0.45", "0.47") one round at a time.
 Two causes, both fixable, and together they are what this skill is for:
 
 - every timing was a `private const float`, so changing `0.4f` → `0.45f` meant
@@ -82,8 +74,8 @@ playback is what turns one question into fifteen.
 ## DOTween inside a `utk exec` snippet
 
 DOTween's fluent API is **entirely extension methods**, and an exec snippet has
-no `using` (see utk-exec-query), so instance syntax does not compile — measured:
-four failed compiles before the first snippet landed. Call them statically:
+no `using` (see utk-exec-query), so instance syntax does not compile. Call them
+statically:
 
 | Written normally | In a snippet |
 |---|---|
@@ -103,30 +95,83 @@ four candidates in a single pass — a filmstrip each — then present the one y
 would ship and say what the others looked like. One exchange instead of eight:
 `0.40 / 0.47 / 0.55` answers "how fast" far better than `0.45` does.
 
-## Two bugs that eat whole sessions
+## Bugs that eat whole sessions
 
+- **A reused object carries the last play's end state.** A popup that is
+  `SetActive`-toggled (or pooled) rather than re-instantiated keeps whatever the
+  exit animation left it at: position, alpha, scale, active children. Replay 1
+  looks right; replay 2 starts from the wrong place. The prefab was never wrong,
+  so "fixing" its values changes nothing. The bug is in the reset that should
+  run **before** each play: look for restore lines that were removed or commented
+  out. A single `Goto` scrub on a freshly built sequence cannot show it, so
+  **play it twice** before trusting a fix.
 - **A parent's scale reaches every child.** Tweening a group from `1.2` → `1`
   scales the label inside it too; five consecutive round-trips went to "the
   label is *still* scaling". Counter-scaling fights the layout — take the child
-  **out of the scaled group** and tween it on its own.
+  **out of the scaled group** and tween it on its own, from the same function
+  and the same duration/ease constants as the group, so the two cannot drift.
 - **Layout snaps back when the motion ends.** Tweening `anchoredPosition` or
   size under a LayoutGroup / ContentSizeFitter works until the next rebuild
   overwrites it, which reads as a jerk at the end. Either disable the driver for
   the duration of the tween, or tween a child the driver does not control (see
   unity-ugui-layout).
 
+## Choreography patterns that hold up
+
+- **Swap two values through one mask.** An old number sliding out while the new
+  one slides in must be visible **in the same frame**. Put one `RectMask2D`
+  sized to the slot, reparent both texts under it, and tween them together. Do
+  not hide one and then show the other. Per-character motion is TMP vertex
+  animation inside that same mask.
+- **Fly-to-target: animate the real thing.** A spawned copy that chases the
+  on-screen icon's position lags a frame behind and reads as "jumpy". Fly the
+  existing instance, or hand off exactly at the same frame. Reuse the project's
+  existing fly effect (the one coins already use). Add overridable fields
+  (shrink-to scale, ease) with defaults that keep other callers unchanged.
+  "Shrink while flying" needs an ease that actually shrinks early; `InBack`
+  stays full-size until the end.
+- **A counter updates when the effect lands, not when the data changes.** The
+  server value often arrives first. Hold the displayed value (the old one)
+  when the effect starts, and release it from the effect's completion callback.
+  Never reset the label to "the old value" after it already showed the new one,
+  because that reset is the visible dip (2 → 1 → 2).
+- **Bind before the first visible frame.** A popup whose data bind runs after
+  the open animation starts shows the prefab's placeholder values first. Bind,
+  then animate.
+- **"Make it consistent with the other popups" means calling their shared
+  helper**, not copying numbers. Then re-check the helper's defaults against
+  this screen's own design. A shared dim alpha multiplied over a sprite that
+  already bakes its own alpha gives neither value (0.8 × 0.75 = 0.6).
+- **Particles: randomize per particle, not per burst**, when the design shows
+  varied sizes/speeds.
+- **Write the final numbers down** (in the tunables class, with a comment). A
+  later "change it back" without a record turns into git archaeology.
+
 ## Matching a reference video or HTML prototype
 
-Do not eyeball it. Pull the reference's frames at known times and sample your
-sequence at the same times, then compare:
+Do not eyeball it. Turn the reference into numbers **before** writing any
+tween:
 
 ```bash
 ffprobe -v error -show_entries format=duration -of csv=p=0 ref.mp4
-ffmpeg -v error -i ref.mp4 -vf fps=10 /tmp/ref/f%03d.png
+# coarse pass: 10 fps contact sheet with the timestamp burned into each frame
+ffmpeg -v error -i ref.mp4 -vf "fps=10,drawtext=text='%{pts\:hms}':x=8:y=8:fontsize=28:fontcolor=white:box=1,tile=6x4" /tmp/ref/sheet%02d.png
+# fine pass on the fast segment: same filter, higher fps, trimmed with -ss/-t
 ```
 
-Frame `f008` at `fps=10` is t=0.8s: scrub to `0.8f`, screenshot, compare the two
-images. What comes back is a number to change, not "it doesn't look right".
+Read the sheets, then write an **ms beat table** (t → what moves, from where to
+where, which ease), and confirm the total duration with the user. Only then
+write the sequence. After that, scrub your sequence at the same timestamps
+and compare frame to frame. What comes back is a number to change, not "it
+doesn't look right".
+
+## When the rounds keep coming
+
+After ~3 correction rounds on the same motion, stop guessing. Send the user a
+filmstrip plus the measured values (`anchoredPosition`, scale, alpha per frame,
+read in the same exec that scrubs) and ask which frame is wrong. Keep the
+scrub/contact-sheet script in the project (e.g. `AgentScripts/`) instead of
+retyping it each session.
 
 ## Related Skills
 - `@unity-dotween-safety` — tween lifecycle: `SetLink`, `DOKill`, leak rules.

@@ -33,6 +33,7 @@ Guidelines for structuring the startup sequence of a mobile game: SDK initializa
 - ❌ **NEVER** `await` an SDK init before starting the game data download.
 - ❌ **NEVER** let a pre-game popup or analytics call block the loading chain.
 - ❌ **NEVER** show an error popup whose "retry" button is wired to nothing — a transient network blip becomes a permanent dead-end.
+- ❌ **NEVER** re-run login or version checks from a boot popup's `Close()`. A dismissible popup shown during boot (soft update, notice) must clear the flag that gates scene-advance and call the advance step directly. Re-running the checks shows the same popup again, forever (`@unity-popup-queue`).
 
 ## A cached prefetch can serve a stale failure forever
 
@@ -89,3 +90,5 @@ var config = await BootRequestAsync(_api.FetchConfigAsync, CachedConfig, ct);
 ## Related Skills
 - `@unity-async-patterns` - Cancellation and UniTask usage in loading chains.
 - `@unity-telemetry-analytics` - Pre-init event buffering and funnel instrumentation.
+- `@unity-popup-queue` - Popups shown during boot and the gates they hold.
+- `@unity-remote-image-flicker` - Background prefetch of images the first screens show.
