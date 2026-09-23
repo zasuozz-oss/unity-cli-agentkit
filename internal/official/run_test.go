@@ -81,6 +81,18 @@ func TestCaptureRetry(t *testing.T) {
 		}
 	})
 
+	// utk always passes --project-path, and then a reload surfaces as a refused
+	// connect to the project's port — the exit 6 a post-import refresh hit.
+	t.Run("refused connect during reload retries", func(t *testing.T) {
+		calls := fakeCLI(t, true, "Cannot connect to Unity Editor Pipeline server at 127.0.0.1:7800.", "")
+		if _, code := CaptureRetry([]string{"command", "x"}, io.Discard); code != 0 {
+			t.Fatalf("code = %d, want 0", code)
+		}
+		if *calls != 2 {
+			t.Fatalf("calls = %d, want 2", *calls)
+		}
+	})
+
 	t.Run("no editor gives up at once", func(t *testing.T) {
 		calls := fakeCLI(t, false, reloadErr)
 		out, code := CaptureRetry([]string{"command", "x"}, io.Discard)

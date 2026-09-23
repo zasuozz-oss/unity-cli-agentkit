@@ -59,6 +59,12 @@ output file (measured: 601s of it). For a whole assembly or PlayMode, start
 the call with `run_in_background: true` from the outset and let the harness
 notify you; `utk` prints a reminder at 90s if you did not.
 
+If the Test Framework itself dies mid-run (`An unexpected error happened while
+running tests`, often with `Test tree is not available for
+PostbuildCleanupTask`), `test_status` would say `running` forever. `utk
+run_tests` watches the console for that entry, cancels the run and fails with
+`TEST_RUN_CRASHED` within ~15s — check `utk editor status`, then retry once.
+
 `utk test` drives the official `unity test` batchmode runner (`utk test --help`
 for its flags), whose own JSON reports only where it wrote the NUnit report —
 so `utk` reads that report and renders it like `run_tests`: a summary line plus

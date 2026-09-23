@@ -46,12 +46,15 @@ func Capture(args []string, stderr io.Writer) ([]byte, int) {
 }
 
 // reloadErrors are the messages the Editor produces while it is reloading its
-// domain. Both are connection-level: the request either never left utk or died
+// domain. All are connection-level: the request either never left utk or died
 // with the AppDomain that would have applied it, so replaying it cannot apply
 // the same change twice.
 var reloadErrors = []string{
 	"No Unity Editor instances found with reachable Pipeline servers",
 	"Connection reset by server",
+	// With --project-path the CLI dials the project's port directly, and a
+	// reload in progress answers with a refused connect instead of the above.
+	"Cannot connect to Unity Editor Pipeline server",
 }
 
 const (

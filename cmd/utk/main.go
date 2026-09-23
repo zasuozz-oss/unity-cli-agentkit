@@ -196,7 +196,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// verb keeps its meaning. An explicit --async_tests is left alone: asking for
 	// the hand-off and getting a block instead would be the surprise.
 	if cmd == "run_tests" && code == 0 && !hasFlag(rest, "--async_tests") {
-		raw, code = pollTests(raw, stderr)
+		raw, code = pollTests(raw, execStart, findFlag(unityArgs, "--project-path"), stderr)
 	}
 	// `recompile` hands off the same way and for the same reason (the domain
 	// reload kills the reply), so `utk editor refresh` answered "started" and
