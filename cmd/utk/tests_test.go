@@ -22,3 +22,18 @@ func TestTestRunFinished(t *testing.T) {
 		}
 	}
 }
+
+// The framework's own crash never reaches test_status, which then says
+// "running" forever; the console entry is the only sign the run is gone.
+func TestTestCrashed(t *testing.T) {
+	logs := []consoleEntry{
+		{Message: "[TestResultCollector] Run started: 3 test(s)"},
+		{Message: "An unexpected error happened while running tests.\nstack…"},
+	}
+	if got := testCrashed(logs); got == "" {
+		t.Fatal("crash entry not detected")
+	}
+	if got := testCrashed(logs[:1]); got != "" {
+		t.Fatalf("healthy run flagged as crashed: %q", got)
+	}
+}

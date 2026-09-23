@@ -31,41 +31,10 @@ func snippetLogs(since time.Time, projectPath string) []byte {
 	if os.Getenv("UTK_NO_EXEC_LOGS") != "" {
 		return nil
 	}
-	args := []string{"command", "console", "--tail", "50", "--json", "--no-banner"}
-	if projectPath != "" {
-		args = append(args, "--project-path", projectPath)
-	}
-	raw, code := official.Capture(args, io.Discard)
-	if code != 0 {
-		return nil
-	}
-	env, err := official.Parse(raw)
-	if err != nil || !env.Success {
-		return nil
-	}
-	var d struct {
-		Logs []struct {
-			// logType is 0.7.0's exact LogType; level is the collapsed
-			// severity every version reports. Prefer the former when present.
-			LogType   string `json:"logType"`
-			Level     string `json:"level"`
-			Message   string `json:"message"`
-			Timestamp string `json:"timestampUtc"`
-		} `json:"entries"`
-	}
-	if json.Unmarshal(env.Payload(true), &d) != nil {
-		return nil
-	}
-	// The tool answers newest-first; a snippet's own logs read in the order it
-	// wrote them.
+	logs := consoleSince(since, projectPath)
 	var b strings.Builder
 	kept := 0
-	for i := len(d.Logs) - 1; i >= 0; i-- {
-		l := d.Logs[i]
-		t, terr := time.Parse(time.RFC3339Nano, l.Timestamp)
-		if terr != nil || t.Before(since) {
-			continue
-		}
+	for _, l := range logs {
 		kept++
 		if kept > logCap {
 			continue
@@ -80,6 +49,48 @@ func snippetLogs(since time.Time, projectPath string) []byte {
 		b.WriteString("…+" + strconv.Itoa(kept-logCap) + " more (utk console)\n")
 	}
 	return []byte(b.String())
+}
+
+type consoleEntry struct {
+	// logType is 0.7.0's exact LogType; level is the collapsed severity every
+	// version reports. Prefer the former when present.
+	LogType   string `json:"logType"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+	Timestamp string `json:"timestampUtc"`
+}
+
+// consoleSince returns the last 50 console entries recorded at or after
+// `since`, oldest first, or nil when the console cannot be read.
+func consoleSince(since time.Time, projectPath string) []consoleEntry {
+	args := []string{"command", "console", "--tail", "50", "--json", "--no-banner"}
+	if projectPath != "" {
+		args = append(args, "--project-path", projectPath)
+	}
+	raw, code := official.Capture(args, io.Discard)
+	if code != 0 {
+		return nil
+	}
+	env, err := official.Parse(raw)
+	if err != nil || !env.Success {
+		return nil
+	}
+	var d struct {
+		Logs []consoleEntry `json:"entries"`
+	}
+	if json.Unmarshal(env.Payload(true), &d) != nil {
+		return nil
+	}
+	// The tool answers newest-first; callers read them in the order written.
+	var out []consoleEntry
+	for i := len(d.Logs) - 1; i >= 0; i-- {
+		t, terr := time.Parse(time.RFC3339Nano, d.Logs[i].Timestamp)
+		if terr != nil || t.Before(since) {
+			continue
+		}
+		out = append(out, d.Logs[i])
+	}
+	return out
 }
 
 // firstLine drops a log's trailing detail; the message itself is the signal and
