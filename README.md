@@ -314,6 +314,17 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
 
+Workflow skills distilled from real rework (game-agnostic; each routes to the
+skills above/below before adding its own rules):
+
+| Skill | When to use |
+|---|---|
+| `figma-unity-workflow` | Figma → Unity UI order of work: tool discovery, reuse authored frames, 9-slice sizing, text fit, world-space clipping |
+| `unity-runtime-ui-rules` | Runtime uGUI: reactive layout, re-pointing after refit, `overrideSorting`, nested canvases, lifting UI above a dim |
+| `unity-live-editor-loop` | The build → test → Play → screenshot loop in the open Editor: symptom → skill table, backporting hand edits, capture recipe |
+| `unity-popup-layout` | Carrying the game's own popup layout into Unity (no imposed layout): positions relative to the panel, 48 dp targets / 8 dp gaps, text fit; `scripts/popup_layout_check.cs` flags small targets, overflow, off-panel, overlaps |
+| `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / TIE / INPUT LEAK |
+
 …and 31 advisory skills, vendored from
 [agentic-unity-skills](https://github.com/zasuozz-oss/antigravity-unity-skills),
 cover **what to write**. They carry their own activation descriptions, so an
