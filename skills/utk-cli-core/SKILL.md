@@ -124,10 +124,18 @@ On macOS, with Accessibility permission for the terminal running `utk`, this
 is handled for you:
 
 - **Known dialog** → `utk` clicks the right button, says which and why
-  (`utk: auto-answered modal "…" → Reload (…)`), and retries the call once.
-  The allow-list is deliberately short — today only "the open scene(s) have
-  been modified externally" → **Reload**. The API updater and the
-  save-your-scene prompt are *not* on it: both answers rewrite files nobody
+  (`utk: auto-answered modal "…" → Reload (…)`). The allow-list is
+  deliberately short:
+  - "the open scene(s) have been modified externally" → **Reload**, then the
+    call is retried once;
+  - "Do you want to save the changes you made in the scenes" → **Cancel**,
+    and **no retry**. Save can overwrite the file on disk (a pull, say) and
+    Don't Save drops unsaved work; which one is right depends on whose edits
+    those are. Cancel writes nothing and only aborts the action that asked.
+    The scene stays dirty, so decide yourself (`utk-asset-edit`, "Dirty
+    scenes") and then redo the action.
+
+  The API updater is *not* on it: its answer rewrites `.cs` files nobody
   asked `utk` to touch.
 - **Unknown dialog** → printed with its buttons, never clicked. Answer it in
   the Unity window.
