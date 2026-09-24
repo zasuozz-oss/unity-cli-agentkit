@@ -33,6 +33,7 @@ and every batch of direct edits MUST be validated through the editor.
 | Importer- or live-state-dependent work (import settings, postprocessors, runtime state) | `utk exec` / the matching utk command |
 | Validate a batch of direct edits (**mandatory**) | `utk editor refresh` FIRST (imports your edits), then `utk console --type error`. Reserialize only after that — see below |
 | Change a setting the **importer** owns (SpriteAtlas Include-in-Build, texture import mode, localization String Tables) | `utk exec` through the editor API, then grep the YAML to confirm it changed. A text edit here loses to the editor's in-memory copy |
+| Change anything in the scene that is **currently open** | `utk exec` — a text edit hangs the Editor behind a modal dialog (next section) |
 
 ## Rename recipe (prefab/asset)
 
@@ -60,6 +61,36 @@ console it is followed by describes *these* edits and not the previous batch.
 Fix any errors before reporting done. If an edit produced a broken file,
 prefer redoing that change via `utk exec` instead of patching the YAML
 further.
+
+### Never text-edit the scene that is currently open
+
+Rewriting the open scene's `.unity` on disk makes the Editor raise **"The open
+scene(s) have been modified externally — Ignore / Reload"**. That dialog runs
+on the main thread and pumps its own event loop until somebody clicks it, so
+every main-thread call queued behind it expires:
+
+```
+utk status          → reachable                       # the socket is served off the main thread
+utk editor refresh  → Pipeline command 'recompile' timed out after 30000ms
+utk exec …          → 400 Bad Request: Main thread operation timed out after 60000ms
+```
+
+The Unity process sits at ~0% CPU throughout — it is blocked, not compiling,
+and no amount of waiting or retrying clears it. On macOS (with Accessibility
+permission for your terminal) `utk` answers this particular dialog itself —
+**Reload**, then it retries the call once and prints what it clicked; without
+that permission it just names the dialog and you answer it in the Unity
+window. Either way the edit still costs a 30-60s stall, so don't rely on it.
+
+- ✅ Change the open scene through `utk exec` (`SerializedObject` /
+  `EditorSceneManager.MarkSceneDirty` + `SaveOpenScenes`).
+- ✅ Text edit is fine on a scene that is *not* open — check first:
+  `utk exec 'return UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().path;'`
+- ⚠️ **After a `git pull` that touched any `.unity`**, the same dialog is
+  already waiting. **Reload** adopts the pulled file; **Ignore** keeps the
+  Editor's copy and overwrites the pull on the next save — which is why
+  `utk`'s automatic answer is Reload. If you had unsaved in-Editor changes to
+  that scene, save them (or set `UTK_NO_AUTO_DIALOG=1`) *before* the pull.
 
 ### `utk reserialize` before a refresh silently reverts your edit
 

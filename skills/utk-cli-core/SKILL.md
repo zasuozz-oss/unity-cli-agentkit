@@ -112,6 +112,32 @@ Recovery — the one case where blind-editing C# is correct:
 4. Poll `utk status` until `reachable`; still `SAFE MODE` means an error
    remains — back to step 1.
 
+## `reachable` but everything times out: a modal dialog
+The pipeline server answers `utk status` off the main thread, so a `reachable`
+Editor can still run nothing. When `status` is fine but `exec` / `editor
+refresh` / `recompile_status` all time out (`Main thread operation timed out`,
+`Pipeline command '…' timed out`) and the Unity process sits at ~0% CPU, a
+modal dialog is pumping its own event loop and every queued call expires
+behind it.
+
+On macOS, with Accessibility permission for the terminal running `utk`, this
+is handled for you:
+
+- **Known dialog** → `utk` clicks the right button, says which and why
+  (`utk: auto-answered modal "…" → Reload (…)`), and retries the call once.
+  The allow-list is deliberately short — today only "the open scene(s) have
+  been modified externally" → **Reload**. The API updater and the
+  save-your-scene prompt are *not* on it: both answers rewrite files nobody
+  asked `utk` to touch.
+- **Unknown dialog** → printed with its buttons, never clicked. Answer it in
+  the Unity window.
+- `UTK_NO_AUTO_DIALOG=1` reports every dialog instead of answering any.
+- Anywhere else, or without the permission, you get the bare timeout — check
+  the Unity window yourself.
+
+The usual culprit is a `.unity` rewritten on disk while it was the open
+scene, by a `git pull` or a text edit: see `utk-asset-edit`.
+
 ## Project-defined tools
 The tool surface is extensible from the project side: any `static` method
 tagged `[CliCommand]` (namespace `Unity.Pipeline.Commands`, in an Editor
