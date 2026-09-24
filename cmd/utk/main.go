@@ -179,6 +179,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 			raw, code = official.CaptureRetry(unityArgs, stderr)
 		}
 	}
+	// A main-thread timeout means a modal dialog is almost certainly pumping
+	// its own event loop, and the request never ran at all. Answering the
+	// dialog is the fix; only then is there anything to retry.
+	if mainThreadTimeout(string(raw)) && answerModal(stderr) {
+		execStart = time.Now().UTC()
+		raw, code = official.CaptureRetry(unityArgs, stderr)
+	}
 	// A snippet written the way the surrounding project is written — bare
 	// `Object.FindAnyObjectByType<T>()` — cannot compile inside eval, where
 	// `System.object` is equally in scope. It is the single most common exec
@@ -316,15 +323,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 // an obsolete-API note reads as a build breaker; filter.Error tells them
 // apart, and a blob holding only warnings is not a failure at all.
 func renderEnvelopeErrors(env *official.Envelope, code int, stderr io.Writer) int {
-	fatal := false
+	fatal, blocked := false, false
 	for _, e := range env.Errors {
 		text, isFatal := filter.Error(e.Message)
 		if isFatal {
 			fatal = true
+			blocked = blocked || mainThreadTimeout(e.Message)
 			fmt.Fprintln(stderr, "utk:", e.Code+":", text)
 			continue
 		}
 		fmt.Fprintln(stderr, "utk: warning:", text)
+	}
+	if blocked {
+		answerModal(stderr)
 	}
 	if !fatal && len(env.Errors) > 0 {
 		return 0

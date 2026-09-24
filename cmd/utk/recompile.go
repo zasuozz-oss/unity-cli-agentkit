@@ -72,6 +72,7 @@ func pollRecompile(initial []byte, projectPath string, stderr io.Writer) ([]byte
 	fmt.Fprintf(stderr, "utk: still compiling after %s — poll `utk recompile_status` for the result\n",
 		recompilePollBudget)
 	fmt.Fprintln(stderr, "  (stuck at `triggered` means the import never started: focus the Unity window)")
+	answerModal(stderr)
 	return initial, 1
 }
 
