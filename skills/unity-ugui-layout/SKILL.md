@@ -98,9 +98,9 @@ background on a wide chip).
 | different aspect, a panel/button/bar meant to stretch | `Sliced` with a border measured from the sprite's pixels |
 | no sprite of the right shape exists | export one, or ask — never borrow another element's sprite |
 
-Check with the distortion audit in `unity-figma-cli` (Verify → "Distortion
-audit") after any build script runs — a screenshot at one resolution misses
-this.
+Check with `unity-ui-sprite-distortion` (runnable audit; also fill bars and
+layout-driven icons) after any build script runs — a screenshot at one
+resolution misses this.
 
 ---
 
@@ -355,4 +355,5 @@ Center-fixed:       anchorMin=(0.5,0.5) anchorMax=(0.5,0.5) pivot=(0.5,0.5)
 ## Related Skills
 - `@unity-ui-performance` — Canvas rebuild optimization, raycast target cleanup, scroll view recycling after layout is built
 - `@unity-csharp-standards` — Naming conventions and coding rules for UI scripts
-- `@unity-figma-cli` — building this layout from a Figma frame, and the distortion audit
+- `@unity-figma-cli` — building this layout from a Figma frame
+- `@unity-ui-sprite-distortion` — stretched icons, warped fill bars, the distortion audit

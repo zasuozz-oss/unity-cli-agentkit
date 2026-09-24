@@ -1,6 +1,6 @@
 ---
 name: unity-layer-audit
-description: Use in any Unity game whenever something may draw or receive input in the wrong layer — game objects, sprites, meshes, particles or FX showing over a popup/HUD, a popup under the board, two overlays fighting, taps or pinch reaching the board behind a popup — and ALWAYS after adding a popup, a Canvas, a Renderer/ParticleSystem, or changing any sortingOrder/sortingLayer/renderMode/camera depth. Ships a runnable audit (scripts/layer_audit.cs).
+description: Use in any Unity game BEFORE fixing anything that draws or receives input in the wrong layer — game objects, sprites, meshes, particles or FX showing over a popup/HUD, a popup, tooltip, toast or hint bubble under the board/tray ("lỗi layer", "nằm dưới", "bị che", "bị đè", "đè lên"), a dim or mask drawn over content it should sit behind, two overlays fighting, taps or pinch reaching the board behind a popup — and ALWAYS after adding a popup, a Canvas, a Renderer/ParticleSystem, or changing any sortingOrder/sortingLayer/renderMode/camera depth. Ships a runnable audit (scripts/layer_audit.cs).
 ---
 
 # Layer audit: nothing draws or taps through a popup
@@ -33,7 +33,15 @@ Plus:
 - `SpriteRenderer`, `MeshRenderer`, `ParticleSystemRenderer`, `LineRenderer`,
   `TrailRenderer` each carry their own `sortingLayer`/`sortingOrder`; a particle
   system placed inside a Canvas still sorts by its renderer's order, not the canvas's.
-  A `SortingGroup` makes its children sort as one unit.
+  A `SortingGroup` makes its children sort as one unit — but it has a renderer
+  cap (~4k); past it Unity logs "Number of renderers and sorting groups
+  handled…" and **drops the group's sorting silently**. Never wrap a
+  data-sized board in one; set `sortingOrder` per renderer.
+- **A custom UI shader's `Queue` beats hierarchy order.** A material with
+  `"Queue"="Overlay"` (4000) on a canvas draws after its `Transparent` (3000)
+  siblings wherever it sits in the hierarchy — a ported dim/hole-mask shader
+  tinted the cards it was placed behind. When a UI element ignores its
+  sibling order, read the shader's/material's queue before touching orders.
 
 ## 2. Keep ONE ladder, in code
 
@@ -52,6 +60,19 @@ and FX reads from it. Example shape (numbers are per game):
 | 20 | celebration fx | finish state |
 | 25 | popup over the finished board | finish state |
 | 30 | transition cover | transitions |
+
+**Transient overlays are layers too** — tooltip, toast, hint bubble, tutorial
+hand. Each gets its own ladder slot and its **own `Canvas` with
+`overrideSorting`**; decide explicitly whether it sits above or below popups
+and write why. Seen: a booster tooltip lived under the booster canvas (10),
+so the tray bed (12) and tray FX (13) covered it; a comment claimed it had
+"its own canvas" — it had none. The second fix gave it 14, the popups' order,
+creating a tie.
+
+**Adding any sub-layer re-derives the whole stack.** A new tray background,
+FX canvas or overlay changes what sits above everything nearby: list every
+canvas/renderer order around it (HUD, tray, FX, overlays, popups) and place
+the new one, don't bump one number.
 
 **Hard invariant: game assets always draw below popup UI.** Board, pieces,
 tray, sprites, meshes, particles, world FX and world text — every gameplay layer
@@ -96,7 +117,11 @@ in Play mode and prints:
   full-screen `raycastTarget`, so taps/pinch reach what is behind it.
 
 Popups are auto-detected by "popup/dialog/modal" in a name or component type;
-set `targets` at the top of the script for other names.
+set `targets` at the top of the script for other names. Overlays (`*tooltip*`,
+`*toast*`, `*tip`, or the `overlays` list) get their own check, since they
+often have no canvas of their own: **OVERLAY** says which canvas they really
+draw at, **COVERS OVERLAY** lists what is drawn over them. Run it with the
+overlay **showing** — a hidden tooltip is not audited.
 
 **When to run** — every one of these, before reporting UI done:
 0. **No popup open**, mid-gameplay: every enabled canvas above the HUD must be
@@ -166,6 +191,12 @@ Drawing on top is not blocking input:
 - ❌ **NEVER** pick a sortingOrder number without placing it in the ladder.
 - ❌ **NEVER** fix one overlap by bumping a number without re-running the audit —
   bumps cascade into the next overlap.
+- ❌ **NEVER** write "has its own canvas / draws over everything" in a comment
+  or report unless `utk exec` shows the Canvas and its order. A change deferred
+  (Editor in Play, compile pending) is reported as **not done**, and no comment
+  may claim it — the next session trusts the comment.
+- ❌ **NEVER** give an overlay or a new layer an order equal to one that can
+  be on screen with it (popups included) — that is a TIE, not a fix.
 
 ## Related Skills
 

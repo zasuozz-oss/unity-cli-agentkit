@@ -4,6 +4,7 @@
 //
 // Params — edit before running:
 string[] targets = new string[0];   // popup root names to audit; empty = auto-detect (Popup/Dialog/Modal in a name or component type)
+string[] overlays = new string[0];  // small non-modal overlays (tooltip, toast, bubble); empty = auto-detect (*tooltip*, *toast*, *tip)
 bool dumpLadder = true;              // print the full draw ladder, lowest first
 float minOverlap = 0.02f;            // ignore overlaps under 2 % of the popup's screen area
 
@@ -117,6 +118,37 @@ for (int i = 0; i < items.Count; i++)
         float ov = Area(Inter(pr, (Rect)q[3])) / pa;
         if (ov < minOverlap) continue;
         sb.AppendLine($"ABOVE POPUP: {q[2]} [{q[5]}] draws over {p[2]} [{p[5]}], covering {ov:P0} of it");
+        findings++;
+    }
+}
+// 3b. Overlays (tooltip, toast, bubble): often have NO canvas of their own and draw at their parent
+//     canvas's order — so anything above that canvas covers them. Use the overlay's own rect.
+bool IsOverlay(Transform t)
+{
+    if (overlays.Length > 0) { foreach (var n in overlays) if (t.name == n) return true; return false; }
+    var n2 = t.name.ToLowerInvariant();
+    return n2.Contains("tooltip") || n2.Contains("toast") || n2.EndsWith("tip");
+}
+foreach (var ort in UnityEngine.Object.FindObjectsByType<RectTransform>(FindObjectsSortMode.None))
+{
+    if (!ort.gameObject.activeInHierarchy || !IsOverlay(ort)) continue;
+    var oc = ort.GetComponentInParent<Canvas>(); var sc = SortingCanvas(oc); if (sc == null || !sc.isActiveAndEnabled) continue;
+    int idx = -1; for (int i = 0; i < items.Count; i++) if ((Transform)items[i][4] == sc.transform) { idx = i; break; }
+    if (idx < 0) continue; // nothing visible under it
+    var cam = sc.renderMode == RenderMode.ScreenSpaceOverlay ? null : (sc.worldCamera != null ? sc.worldCamera : Camera.main);
+    var k = new Vector3[4]; ort.GetWorldCorners(k);
+    Vector2 a0 = cam == null ? (Vector2)k[0] / sc.pixelRect.size : RectTransformUtility.WorldToScreenPoint(cam, k[0]) / new Vector2(cam.pixelWidth, cam.pixelHeight);
+    Vector2 a2 = cam == null ? (Vector2)k[2] / sc.pixelRect.size : RectTransformUtility.WorldToScreenPoint(cam, k[2]) / new Vector2(cam.pixelWidth, cam.pixelHeight);
+    var orr = Rect.MinMaxRect(a0.x, a0.y, a2.x, a2.y); float oa = Area(orr); if (oa <= 0f) continue;
+    string own = sc == oc && oc.transform == ort ? "own canvas" : "no canvas of its own, draws at " + sc.name;
+    sb.AppendLine($"OVERLAY: {PathOf(ort)} [{items[idx][5]}] ({own})");
+    for (int j = idx + 1; j < items.Count; j++)
+    {
+        var q = items[j]; var qt = (Transform)q[4];
+        if (qt.IsChildOf(ort)) continue;
+        float ov = Area(Inter(orr, (Rect)q[3])) / oa;
+        if (ov < minOverlap) continue;
+        sb.AppendLine($"COVERS OVERLAY: {q[2]} [{q[5]}] draws over {ort.name}, covering {ov:P0} of it");
         findings++;
     }
 }

@@ -99,11 +99,26 @@ The seven above cover *driving* the Editor. `utk init` also installs advisory
 Unity skills covering *what to write* — they activate from their own
 descriptions, so consult them by topic rather than listing them here:
 
-- `unity-*` — C# standards, uGUI layout, UI performance, async/UniTask, DOTween safety, UI motion tuning, event safety, Addressables, asset audit, editor tooling, EditMode tests, Android builds, social auth, telemetry, Spine UI, panel navigation, scrollview recycling, startup/loading, texture pipeline, narrow-aspect fit & row overlap on tall phones, popup queue & one-time popups, first-open image flicker & loading indicators, IAP purchase & ownership, server-driven time-based feature testing, bug-regression workflow (reproduce before fixing), spam-click bugs
+- `unity-*` — C# standards, uGUI layout, UI performance, async/UniTask, DOTween safety, UI motion tuning, event safety, Addressables, asset audit, editor tooling, EditMode tests, Android builds, social auth, telemetry, Spine UI, panel navigation, scrollview recycling, startup/loading, texture pipeline, narrow-aspect fit & row overlap on tall phones, popup queue & one-time popups, first-open image flicker & loading indicators, IAP purchase & ownership, server-driven time-based feature testing, bug-regression workflow (reproduce before fixing), spam-click bugs, popup layout, layer/draw-order audit, sprite distortion
 - `unity-urp-*` / `unity-3d-*` — URP asset & rendering path, Render Graph renderer
   features, shader authoring & SRP Batcher, 3D lighting/lightmaps/APV, 3D
   rendering performance, model import pipeline
 - `unity-qa-*` — QA parser, generator, scorer, verifier
+
+**UI bug → load the skill BEFORE the first edit.** These classes were fixed
+by eye, reported done, and came back — each skill ships a script that finds
+the whole class in one call. The user often writes in Vietnamese:
+
+| The report says | Load | Run before "done" |
+|---|---|---|
+| layer, sorting, "nằm dưới", "bị che", "bị đè", "đè lên", FX/pieces over a popup, tooltip/toast under the board, taps through a popup | `unity-layer-audit` (+ `unity-runtime-ui-rules`) | `scripts/layer_audit.cs` with the popup/overlay showing |
+| "méo", "bẹp", "giãn", "bị kéo", "bị scale", stretched icon/button/chip, fill/progress/loading bar ends warped | `unity-ui-sprite-distortion` | `scripts/sprite_distortion_audit.cs`, whole project |
+| buttons/texts inside a popup: size, spacing, text spilling, ✕ at the edge | `unity-popup-layout` | `scripts/popup_layout_check.cs` |
+| overlap only on tall/narrow phones (9:20+) | `unity-ui-narrow-aspect-fit` / `unity-ugui-aspect-overlap` | the aspect sweep |
+
+Report a fix done only with the script's output and a screenshot of the
+state the user described; a change deferred because the Editor is in Play
+is reported as not done.
 
 ### Unity Verification
 
