@@ -92,6 +92,35 @@ window. Either way the edit still costs a 30-60s stall, so don't rely on it.
   `utk`'s automatic answer is Reload. If you had unsaved in-Editor changes to
   that scene, save them (or set `UTK_NO_AUTO_DIALOG=1`) *before* the pull.
 
+### Dirty scenes: never let the save prompt decide
+
+**"Scene(s) Have Been Modified — Do you want to save the changes you made in
+the scenes? Save / Don't Save / Cancel"** blocks the main thread the same way.
+It appears when something closes a dirty scene the interactive way: a
+`File/…` menu item via `ExecuteMenuItem`,
+`EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()`, or quitting or
+reopening the project. Neither Save nor Don't Save is safe to pick blind. Save
+writes the Editor's copy over the file on disk, which may be a pull. Don't Save
+drops the edits.
+
+- ✅ **Save your own edits in the same `utk exec`** that made them:
+  `EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveScene(scene);`.
+  A scene you changed should never be left dirty between commands.
+- ✅ **Check before opening or switching a scene, or entering Play:**
+  `SceneManager.GetSceneAt(i).isDirty` for every open scene. Dirty from your
+  own edits → save it. Dirty and not yours → stop and ask the user.
+- ❌ Don't call `ExecuteMenuItem("File/…")` or
+  `SaveCurrentModifiedScenesIfUserWantsTo()` from `exec`. They are the
+  prompting paths.
+- ⚠️ `EditorSceneManager.OpenScene(path)` does **not** prompt: it drops unsaved
+  changes to the scene it replaces. That is why the `isDirty` check comes
+  first.
+
+If the prompt still appears, `utk` (on macOS, with Accessibility permission)
+clicks **Cancel**, and only Cancel, and does not retry the call: whatever
+raised the prompt would raise it again. The action the prompt interrupted did
+not happen. Resolve the dirty scene as above, then redo the action.
+
 ### `utk reserialize` before a refresh silently reverts your edit
 
 `reserialize` is `AssetDatabase.ForceReserializeAssets`: it writes the

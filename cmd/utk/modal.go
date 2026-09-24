@@ -31,21 +31,44 @@ type dialog struct {
 // knownDialogs are the modals utk may answer by itself, and only those: a
 // dialog that is not on this list is reported, never clicked.
 //
-// Deliberately NOT here, because both answers change files the caller did not
-// ask utk to change:
-//   - the API updater ("I Made a Backup. Go Ahead!") rewrites .cs sources;
-//   - "Do you want to save the changes you made in the scenes" — Save writes
-//     the Editor's copy over whatever is on disk, Don't Save drops the work.
-var knownDialogs = []struct{ match, button, why string }{
+// Deliberately NOT here, because the answer changes files the caller did not
+// ask utk to change: the API updater ("I Made a Backup. Go Ahead!") rewrites
+// .cs sources.
+//
+// retry says whether the request the dialog ate is worth sending again. It is
+// not after a Cancel: whatever raised the dialog would raise it again.
+type knownDialog struct {
+	match, button, why string
+	retry              bool
+	next               string // what the caller has to do itself, if anything
+}
+
+var knownDialogs = []knownDialog{
 	{
 		match:  "have been modified externally",
 		button: "Reload",
+		retry:  true,
 		// The on-disk version is the one somebody just asked for — a git pull
 		// or a deliberate text edit — and it is what every later command will
 		// read. Ignore keeps the Editor's stale copy and silently writes it
 		// back over that change at the next save. Reload costs unsaved
 		// in-Editor edits, which an agent-driven session rarely has.
 		why: "the on-disk scene is the change that was just made; Ignore would overwrite it at the next save",
+	},
+	{
+		// "Scene(s) Have Been Modified — Do you want to save the changes you
+		// made in the scenes: … Save / Don't Save / Cancel". Raised when
+		// something closes a dirty scene the interactive way (a File/ menu
+		// item, SaveCurrentModifiedScenesIfUserWantsTo, quitting). Save writes
+		// the Editor's copy over whatever is on disk, possibly a pull; Don't
+		// Save drops the work. Which is right depends on whose edits those
+		// are, and only the caller knows that. Cancel writes nothing, only
+		// aborts the action that asked, and hands the choice back.
+		match:  "want to save the changes you made in the scene",
+		button: "Cancel",
+		why:    "Save could overwrite the file on disk and Don't Save drops unsaved work; Cancel changes nothing",
+		next: "the scene is still dirty and the action that raised the prompt did not happen. Decide explicitly: " +
+			"EditorSceneManager.SaveScene(scene) if the edits are yours, ask the user if they are not, then redo the action",
 	},
 }
 
@@ -116,48 +139,51 @@ func (d dialog) answer(button string) error {
 // known finds the entry authorising an automatic answer, if there is one. A
 // button utk does not actually see on the dialog is not clicked: the wording
 // varies by Editor version, and clicking blind could hit the wrong option.
-func (d dialog) known() (button, why string, ok bool) {
+func (d dialog) known() (knownDialog, bool) {
 	for _, k := range knownDialogs {
 		if !strings.Contains(d.text, k.match) {
 			continue
 		}
 		for _, b := range d.buttons {
 			if b == k.button {
-				return k.button, k.why, true
+				return k, true
 			}
 		}
 	}
-	return "", "", false
+	return knownDialog{}, false
 }
 
 // answerModal deals with whatever is blocking the Editor's main thread: it
 // clicks the dialogs it knows the right answer to and reports the rest for a
-// human to answer. It returns true when it clicked something, so the caller
-// can retry the request the dialog ate.
+// human to answer. It returns true when it clicked something worth retrying
+// the request the dialog ate for.
 func answerModal(stderr io.Writer) bool {
 	dialogs := modalDialogs()
 	if len(dialogs) == 0 {
 		return false
 	}
-	clicked := false
+	retry := false
 	for _, d := range dialogs {
-		button, why, ok := d.known()
+		k, ok := d.known()
 		if ok && os.Getenv(autoAnswerOff) == "" {
-			if err := d.answer(button); err != nil {
+			if err := d.answer(k.button); err != nil {
 				ok = false // fall through and report it instead
 			} else {
-				fmt.Fprintf(stderr, "utk: auto-answered modal %q → %s (%s)\n", d.text, button, why)
-				clicked = true
+				fmt.Fprintf(stderr, "utk: auto-answered modal %q → %s (%s)\n", d.text, k.button, k.why)
+				if k.next != "" {
+					fmt.Fprintf(stderr, "  %s\n", k.next)
+				}
+				retry = retry || k.retry
 				continue
 			}
 		}
 		fmt.Fprintf(stderr, "utk: the Editor main thread is blocked by a modal dialog — answer it in the Unity window:\n  %s [buttons: %s]\n",
 			d.text, strings.Join(d.buttons, ", "))
 		if ok {
-			fmt.Fprintf(stderr, "  (%s=1 is set, so utk left it alone; the answer it would pick is %s)\n", autoAnswerOff, button)
+			fmt.Fprintf(stderr, "  (%s=1 is set, so utk left it alone; the answer it would pick is %s)\n", autoAnswerOff, k.button)
 		}
 	}
-	return clicked
+	return retry
 }
 
 func osascript(script string) (string, error) {
