@@ -244,67 +244,12 @@ it done:
 
 ### Distortion audit
 
-Keep it as a file and run it after every import or UI build script. It checks
-prefabs under `ROOT` plus the scenes **already open** — it never opens a scene,
-so the user's work stays loaded. Silence means clean.
-
-```csharp
-// AgentScripts/ui_audit.cs — run with: utk exec --file AgentScripts/ui_audit.cs --timeout 300000
-const string ROOT = "Assets";   // narrow to the UI folder you touched
-var sb = new System.Text.StringBuilder();
-string PathOf(Transform t) { var s = t.name; while (t.parent != null) { t = t.parent; s = t.name + "/" + s; } return s; }
-void Check(GameObject root, string where)
-{
-    foreach (var rt in root.GetComponentsInChildren<RectTransform>(true))
-    {
-        var cs = rt.GetComponent<UnityEngine.UI.CanvasScaler>();
-        if (cs != null) sb.AppendLine($"{where} {PathOf(rt)} CANVAS ref {cs.referenceResolution} match {cs.matchWidthOrHeight} mode {cs.uiScaleMode}");
-        var ls = rt.localScale;
-        if (Mathf.Abs(Mathf.Abs(ls.x) - Mathf.Abs(ls.y)) > 0.01f) sb.AppendLine($"{where} {PathOf(rt)} SCALE {ls}");
-        var img = rt.GetComponent<UnityEngine.UI.Image>();
-        if (img == null || img.sprite == null) continue;
-        var r = rt.rect.size; var sp = img.sprite; var ss = sp.rect.size;
-        string shrunk = "", issue = "";
-        if (UnityEditor.AssetImporter.GetAtPath(UnityEditor.AssetDatabase.GetAssetPath(sp)) is UnityEditor.TextureImporter ti
-            && ti.spriteImportMode == UnityEditor.SpriteImportMode.Single)
-        { ti.GetSourceTextureWidthAndHeight(out int w, out int h); if (w > ss.x + 1 || h > ss.y + 1) shrunk = $" SHRUNK src {w}x{h}"; }
-        if (img.type == UnityEngine.UI.Image.Type.Simple && !img.preserveAspect && r.x > 0 && r.y > 0)
-        { float d = (r.x / r.y) / (ss.x / ss.y); if (d > 1.04f || d < 0.96f) issue = $" STRETCH x{d:F2}"; }
-        if (img.type == UnityEngine.UI.Image.Type.Sliced)
-        {
-            var b = sp.border / (img.pixelsPerUnitMultiplier * sp.pixelsPerUnit / 100f);   // canvas units, ref PPU 100
-            if (b.x + b.z > r.x + 0.5f || b.y + b.w > r.y + 0.5f) issue = $" SLICE-SQUASH border {sp.border} ppum {img.pixelsPerUnitMultiplier}";
-            if (sp.border == Vector4.zero) issue = " SLICED-NO-BORDER";
-        }
-        if (issue != "" || shrunk != "") sb.AppendLine($"{where} {PathOf(rt)} [{sp.name} {ss.x}x{ss.y} -> {r.x:F0}x{r.y:F0} {img.type}]{issue}{shrunk}");
-    }
-}
-foreach (var g in UnityEditor.AssetDatabase.FindAssets("t:Prefab", new[] { ROOT }))
-{
-    var p = UnityEditor.AssetDatabase.GUIDToAssetPath(g);
-    Check(UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p), System.IO.Path.GetFileNameWithoutExtension(p));
-}
-for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
-{
-    var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
-    if (scene.isLoaded) foreach (var go in scene.GetRootGameObjects()) Check(go, scene.name);
-}
-return sb.Length == 0 ? "clean" : sb.ToString();
-```
-
-| Flag | Means | Fix |
-|---|---|---|
-| `STRETCH xN` | `Simple` image drawn N× off its sprite's aspect | right sprite for that shape, `preserveAspect`, or 9-slice (`unity-ugui-layout` → "Sprites keep their aspect") |
-| `SLICE-SQUASH` | the two borders are wider than the rect, so the corners overlap | raise `pixelsPerUnitMultiplier` or re-measure the border |
-| `SLICED-NO-BORDER` | `Sliced` with a zero border stretches like `Simple` | set the border, or switch to `Simple` |
-| `SHRUNK src WxH` | `maxTextureSize` below the PNG; anything sized from the texture is too small | raise `maxTextureSize` |
-| `SCALE` | non-uniform `localScale` squashes everything under it | size the rect, keep scale uniform |
-| `CANVAS` | not a fault — the scaler settings, to check against the choice you pinned | — |
-
-`STRETCH` on an image that is *meant* to stretch (a full-screen background, a
-bar fill) is expected; judge each hit, don't mechanically "fix" all of them.
-Scenes to check that aren't open: ask, or open them `--additive` yourself and
-close them after.
+Run `unity-ui-sprite-distortion` → `scripts/sprite_distortion_audit.cs` after
+every import or UI build script. It checks prefabs under `ROOT` plus the scenes
+already open, and flags `STRETCH`, `SLICED-NO-BORDER`, `SLICE-SQUASH`,
+`FILLED-STRETCH`, non-uniform `SCALE` and `SHRUNK` textures (imported below
+the PNG's size — raise `maxTextureSize`). `CANVAS` lines print the scaler
+settings to check against the choice you pinned. The fix per flag is in that skill.
 
 **Don't touch runtime state while the user is in Play mode.** Check
 `EditorApplication.isPlaying` before writing PlayerPrefs, saves or scene

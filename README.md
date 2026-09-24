@@ -323,7 +323,8 @@ skills above/below before adding its own rules):
 | `unity-runtime-ui-rules` | Runtime uGUI: reactive layout, re-pointing after refit, `overrideSorting`, nested canvases, lifting UI above a dim |
 | `unity-live-editor-loop` | The build → test → Play → screenshot loop in the open Editor: symptom → skill table, backporting hand edits, capture recipe |
 | `unity-popup-layout` | Carrying the game's own popup layout into Unity (no imposed layout): positions relative to the panel, 48 dp targets / 8 dp gaps, text fit; `scripts/popup_layout_check.cs` flags small targets, overflow, off-panel, overlaps |
-| `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / TIE / INPUT LEAK |
+| `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / COVERS OVERLAY (tooltips, toasts) / TIE / INPUT LEAK |
+| `unity-ui-sprite-distortion` | Stretched icons and warped fill/progress bars: Simple vs Sliced vs Filled, 9-slice border minimums, width-driven bars, layout-driven icon sizes; `scripts/sprite_distortion_audit.cs` flags STRETCH / SLICED-NO-BORDER / SLICE-SQUASH / FILLED-STRETCH / SCALE / SHRUNK |
 
 …and 31 advisory skills, vendored from
 [agentic-unity-skills](https://github.com/zasuozz-oss/antigravity-unity-skills),
