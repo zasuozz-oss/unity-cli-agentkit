@@ -94,6 +94,9 @@ where packages — including `com.unity.pipeline` — don't load. Every `utk`
 command then fails to connect even though an Editor is open: a deadlock,
 because the Editor is unreachable *because of* the errors you'd normally read
 through it. `utk status` reports the instance as `SAFE MODE` explicitly.
+On macOS `utk status` usually prevents this by answering the startup
+"Enter Safe Mode?" prompt with Ignore (see the modal dialog section below);
+the recovery below is for when it could not.
 
 Recovery — the one case where blind-editing C# is correct:
 
@@ -134,6 +137,11 @@ is handled for you:
     those are. Cancel writes nothing and only aborts the action that asked.
     The scene stays dirty, so decide yourself (`utk-asset-edit`, "Dirty
     scenes") and then redo the action.
+  - "Enter Safe Mode? … contains compilation errors" → **Ignore**, no retry.
+    It appears at startup, before the pipeline loads, so `utk status` checks
+    for it whenever it finds no reachable Editor. Ignore writes nothing and
+    lets the pipeline come up, so you can read the errors with `utk console
+    --type error` instead of grepping the Editor log.
 
   The API updater is *not* on it: its answer rewrites `.cs` files nobody
   asked `utk` to touch.

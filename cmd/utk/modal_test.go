@@ -48,6 +48,15 @@ func TestDialogKnown(t *testing.T) {
 	if _, ok := (dialog{text: save.text, buttons: []string{"Save", "Don't Save"}}).known(); ok {
 		t.Error("save dialog without Cancel: got ok=true, want false")
 	}
+	// Safe Mode would unload the pipeline package and leave utk nothing to
+	// talk to; Ignore writes nothing and keeps the Editor reachable.
+	safe := dialog{
+		text:    "Enter Safe Mode? The project you are opening contains compilation errors.  Entering Safe Mode allows you to resolve these errors without waiting for the rest of your project to import.",
+		buttons: []string{"Enter Safe Mode", "Ignore", "Quit"},
+	}
+	if k, ok := safe.known(); !ok || k.button != "Ignore" || k.retry || k.next == "" {
+		t.Errorf("safe mode dialog: got (%+v, %v), want Ignore, no retry, with next step", k, ok)
+	}
 	// A dialog utk has no entry for is reported, never clicked.
 	unknown := dialog{text: "Hold on", buttons: []string{"Yes", "No"}}
 	if _, ok := unknown.known(); ok {

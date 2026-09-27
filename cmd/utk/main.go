@@ -209,7 +209,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// reload kills the reply), so `utk editor refresh` answered "started" and
 	// left the caller to poll. Wait here too: the verb's whole purpose is
 	// knowing whether the edited C# compiles.
-	if cmd == "editor" && len(rest) > 0 && rest[0] == "refresh" && code == 0 {
+	if (cmd == "recompile" || cmd == "editor" && len(rest) > 0 && rest[0] == "refresh") && code == 0 {
 		raw, code = pollRecompile(raw, findFlag(unityArgs, "--project-path"), stderr)
 	}
 	// `build` queues and returns; the 30-minute wait behind it was every
@@ -290,6 +290,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	stdout.Write(out)
 	if len(out) > 0 && out[len(out)-1] != '\n' {
 		stdout.Write([]byte("\n"))
+	}
+	// No reachable Editor may be one stuck behind a startup dialog (Safe Mode
+	// on compile errors) that never lets the pipeline server come up. Only
+	// status looks: every other verb fails at connect and never gets here.
+	if kind == "status" && filter.ProjectPath(payload) == "" {
+		answerModal(stderr)
 	}
 	// A command that succeeded while its tests failed still exits 0 upstream.
 	// Every `utk run_tests && ship` reads that as green.

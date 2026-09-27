@@ -70,6 +70,17 @@ var knownDialogs = []knownDialog{
 		next: "the scene is still dirty and the action that raised the prompt did not happen. Decide explicitly: " +
 			"EditorSceneManager.SaveScene(scene) if the edits are yours, ask the user if they are not, then redo the action",
 	},
+	{
+		// "Enter Safe Mode? The project you are opening contains compilation
+		// errors. … Enter Safe Mode / Ignore / Quit", raised at startup before
+		// any package loads. Safe Mode keeps com.unity.pipeline unloaded, so
+		// utk could not read the very errors that caused it; Ignore writes
+		// nothing, finishes the import, and brings the pipeline server up.
+		match:  "contains compilation errors",
+		button: "Ignore",
+		why:    "Safe Mode would keep the pipeline package unloaded; Ignore changes no files and lets the Editor finish loading",
+		next:   "the scripts still do not compile: poll `utk status` until reachable, then read the errors with `utk console --type error`",
+	},
 }
 
 // autoAnswerOff lets a human keep the Editor's dialogs to themselves.
