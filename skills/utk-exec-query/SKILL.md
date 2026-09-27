@@ -109,6 +109,8 @@ editor loop is pumping. Typical timeout causes, in order of likelihood:
 - **Editor backgrounded** — the OS throttles an unfocused Unity (macOS App
   Nap especially). Keep the Unity window focused/visible during agent runs.
   In play mode, step frames yourself instead (utk-playmode-driving).
+  Game frozen while `utk` still answers → Run In Background is off; see the
+  hang triage in utk-playmode-driving.
 - **Modal dialog or progress bar** open in the editor.
 - **Script compilation / domain reload** in progress — in-flight requests are
   dropped; just retry after it settles.

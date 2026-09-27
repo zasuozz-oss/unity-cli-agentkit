@@ -13,6 +13,7 @@ when the project has no copy).
 | Symptom | Read | Fix in one line |
 |---|---|---|
 | Play mode frozen, `frameCount` stuck, fades never finish | `utk-playmode-driving` | `utk set_autotick --enable true` (or bounded `EditorApplication.Step()`), off at the end |
+| Stuck on loading only while unfocused, autotick already on | `utk-playmode-driving` | `PlayerSettings.runInBackground = true` via `utk exec` |
 | "This cannot be used during play mode" / "use EditorSceneManager" | `utk-playmode-driving` | branch on `Application.isPlaying` |
 | `refresh` / `run_tests` hang | `utk-playmode-driving` | `utk editor stop` first |
 | "Cannot connect … pipeline server" right after a compile or sprite import | `utk-cli-core`, `utk-exec-query` | domain reload; retry ≤3 with a pause |
@@ -81,6 +82,9 @@ Editor crashed, a modal dialog) is handed back, not looped on.
 - ✅ Reopen the target scene after `run_tests`, before Play.
 - ✅ Snapshot and restore any save data you touch; leave the Editor stopped,
   unpaused, autotick off.
+- ✅ Before reporting a UI/interaction change done, play it in Play mode with
+  real input and screenshot the result — compile + unit tests are not a
+  check for "the button does X". Say plainly what you could not exercise.
 - ❌ **NEVER** `sleep` and hope frames advanced; poll a signal.
 - ❌ **NEVER** assert UI facts on a mock when the authored asset exists.
 
