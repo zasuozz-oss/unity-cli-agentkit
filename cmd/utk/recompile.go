@@ -36,8 +36,13 @@ func pollRecompile(initial []byte, projectPath string, stderr io.Writer) ([]byte
 	if err != nil || !env.Success {
 		return initial, 0
 	}
-	if st, _ := recompileState(env.Payload(true)); st == "up_to_date" || st == "completed" {
+	switch st, _ := recompileState(env.Payload(true)); st {
+	case "up_to_date", "completed":
 		return initial, 0
+	case "failed":
+		// Errors already on file: the tool refuses without compiling, so
+		// there is nothing to wait for — only $? has to say it failed.
+		return initial, 1
 	}
 	args := []string{"command", "recompile_status", "--json", "--no-banner"}
 	if projectPath != "" {

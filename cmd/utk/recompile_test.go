@@ -134,3 +134,23 @@ func TestRun_EditorRefreshUpToDateDoesNotPoll(t *testing.T) {
 		t.Errorf("stdout = %q", stdout.String())
 	}
 }
+
+// Pre-existing compile errors make recompile refuse outright with status
+// "failed" (measured on pipeline 0.8.0). That is final, and must reach $? —
+// for the bare `utk recompile` spelling too, not only `utk editor refresh`.
+func TestRun_RecompileRefusedIsAFailure(t *testing.T) {
+	refused := `{"success":true,"data":{"result":{"status":"failed","message":"Scripts still have compile errors; nothing was recompiled. Read them with the console command."}}}`
+	for _, args := range [][]string{{"editor", "refresh"}, {"recompile"}} {
+		bin, _ := fakeUnity(t, refused, 0)
+		t.Setenv("UTK_UNITY_BIN", bin)
+		fakeUnityNext(t, `{"success":false,"errors":[{"code":"X","message":"polled when it should not have"}]}`)
+
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 1 {
+			t.Errorf("%v: exit = %d, want 1 (stderr: %s)", args, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "compile errors") {
+			t.Errorf("%v: stdout = %q", args, stdout.String())
+		}
+	}
+}

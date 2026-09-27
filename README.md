@@ -20,7 +20,7 @@ Install these **before** `utk init`, in this order.
 |---|---|---|
 | 1 | **Unity Hub** ≥ 3.19.5 | — |
 | 2 | **Unity Editor** 6.0 or later | `unity editors list` |
-| 3 | **Official Unity CLI** (beta) on `PATH` | `unity --version` → `1.0.0-beta.10` |
+| 3 | **Official Unity CLI** (beta) on `PATH` | `unity --version` → `1.0.0-beta.11` |
 | 4 | **`com.unity.pipeline`** ≥ `0.6.0-exp.1` in the project | `utk status` |
 | 5 | **Go ≥ 1.26** — only to build `utk` from source | `go version` |
 
@@ -80,8 +80,8 @@ schema is the silent-wrong-parameter bug the refusal exists to prevent.
 
 **`unity pipeline upgrade` was broken on CLI `1.0.0-beta.9`** — it reports
 `alreadyLatest: true` while the project sits on an older version, even though
-`unity pipeline list-versions` marks the newer one `Latest`. beta.10's release
-notes do not claim a fix, so keep installing the version explicitly until you
+`unity pipeline list-versions` marks the newer one `Latest`. Neither beta.10's
+nor beta.11's release notes claim a fix, so keep installing the version explicitly until you
 see `upgrade` actually move a project:
 
 ```sh
@@ -96,6 +96,9 @@ referenced `Unity.Pipeline` only to reach the code-reload attributes must now
 also reference `Unity.Pipeline.Attributes` (scripts outside an asmdef need no
 change), and the runtime server no longer ships in a non-development Player
 build unless you define `ENABLE_RUNTIME_PIPELINE`.
+
+`0.8.0-exp.1` (the current `Latest`) is verified with CLI `1.0.0-beta.11`:
+`utk status`, `utk exec`, `utk console` and `utk recompile` all work unchanged.
 
 From CLI `1.0.0-beta.10`, a command that needs an OAuth token starts a resident
 auth broker on demand, so a `unity --internal-auth-broker-serve` process can
