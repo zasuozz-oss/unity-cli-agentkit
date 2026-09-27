@@ -202,6 +202,11 @@ utk set_import_settings --asset Assets/UI/Result/bg.png --settings '{"textureTyp
 utk get_import_settings --asset Assets/UI/Result/bg.png   # verify, keys are not validated for you
 ```
 
+### Swapping art that is already placed in Unity
+
+Replacing one existing sprite with updated Figma art (not building a screen)
+→ **unity-replace**: same path, `.meta` untouched, new pixels at the old size.
+
 ## Build the hierarchy in one pass
 
 A screen is dozens of nodes. That is **one** `utk run_script --file build.cs`

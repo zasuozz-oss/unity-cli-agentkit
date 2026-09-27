@@ -1,6 +1,6 @@
 ---
 name: utk-playmode-driving
-description: Use when an agent has to drive Play mode unattended through `utk` — entering play, waiting for a scene to be ready, stepping frames on an unfocused Editor, screenshotting a runtime state, setting the Game view resolution, or when `editor refresh`/`run_tests`/`exec` hang or fail around play mode ("This cannot be used during play mode", "please use EditorSceneManager.OpenScene", a screenshot stuck on the loading screen).
+description: Use when an agent has to drive Play mode unattended through `utk` — entering play, waiting for a scene to be ready, stepping frames on an unfocused Editor, screenshotting a runtime state, setting the Game view resolution, or when `editor refresh`/`run_tests`/`exec` hang or fail around play mode ("This cannot be used during play mode", "please use EditorSceneManager.OpenScene", a screenshot stuck on the loading screen), or when the Editor hangs / stops answering / only progresses while its window is focused.
 ---
 
 # Driving Play Mode Unattended
@@ -30,6 +30,9 @@ utk wait_for --condition '{"findType":"MyGame.GameController","member":"IsReady"
   the same frame the condition holds — no client loop, no missed 2-second
   screens. `source:"screen"` includes Screen Space-Overlay UI; the default
   `camera` source misses it.
+- `condition.op` accepts only `equals`, `notEquals`, `greaterThan`,
+  `lessThan`, `contains`, `changed`. There is no `greaterOrEqual` — write
+  "N or more" as `{"op":"greaterThan","value":N-1}`.
 - `tolerate_missing true` is what lets you wait for an object that does not
   exist yet (the controller spawns after the scene loads).
 - A **sync** wait holds the command queue: every other `utk` call waits behind
@@ -38,6 +41,43 @@ utk wait_for --condition '{"findType":"MyGame.GameController","member":"IsReady"
   deadlocks until its timeout.
 - `set_autotick` costs a CPU core like a focused Editor. `--enable false` at the
   end of the run.
+
+### Still frozen with autotick on → check Run In Background
+
+`set_autotick` keeps the **Editor** ticking, but in play mode the **player
+loop** also stops while unfocused when Player Settings → *Run In Background*
+is off (`runInBackground: 0` in `ProjectSettings/ProjectSettings.asset`, the
+default). Symptom: `utk` answers fine, but the game sits on the loading screen
+and `Time.frameCount` does not move until someone clicks the Unity window.
+
+```sh
+grep -n runInBackground ProjectSettings/ProjectSettings.asset   # 0 = the cause
+utk exec 'UnityEditor.PlayerSettings.runInBackground = true; UnityEditor.AssetDatabase.SaveAssets(); return UnityEditor.PlayerSettings.runInBackground;'
+```
+
+- Set it through the Editor as above, not by editing the `.asset` while the
+  Editor is open — Unity rewrites the file from memory and reverts the edit.
+- Re-enter play mode afterwards; the running session keeps the old value.
+- Simulated clicks/touches (Input System) are also dropped while unfocused.
+  Before driving input, set the runtime-only (not saved) setting:
+  `UnityEngine.InputSystem.InputSystem.settings.editorInputBehaviorInPlayMode =
+  UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;`
+- Safe for mobile builds: Android/iOS ignore it. On a desktop build it changes
+  real behavior (the game keeps running when alt-tabbed), so tell the user.
+
+### Editor hangs or stops answering — triage in this order
+
+Each step is one bounded command; stop at the first that explains it.
+
+1. `utk status` — not reachable / pipeline too old (< 0.5 has no autotick by
+   default). Old package → `unity pipeline install --package-version <v>`, then
+   focus the Editor once so it resolves.
+2. `utk editor_status` — compiling / importing / updating? Wait on that state,
+   do not retry the command (in-flight requests are dropped on reload).
+3. Modal dialog or progress bar open → no command can run; hand it to the user.
+4. Play mode frozen while `utk` still answers → Run In Background (above).
+5. Editor answers only when focused → `utk set_autotick --enable true`, and
+   once per machine Preferences → General → Interaction Mode → **No Throttling**.
 
 **Fallback — and for frame-exact captures:** pause and step frames yourself.
 This also makes tween/VFX captures deterministic (same frame every run):

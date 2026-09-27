@@ -320,6 +320,7 @@ skills above/below before adding its own rules):
 | Skill | When to use |
 |---|---|
 | `figma-unity-workflow` | Figma → Unity UI order of work: tool discovery, reuse authored frames, 9-slice sizing, text fit, world-space clipping |
+| `unity-replace` | Replacing an existing sprite with re-made art (Figma/AI): same path, `.meta`/GUID kept, fit to the old pixel size |
 | `unity-runtime-ui-rules` | Runtime uGUI: reactive layout, re-pointing after refit, `overrideSorting`, nested canvases, lifting UI above a dim |
 | `unity-live-editor-loop` | The build → test → Play → screenshot loop in the open Editor: symptom → skill table, backporting hand edits, capture recipe |
 | `unity-popup-layout` | Carrying the game's own popup layout into Unity (no imposed layout): positions relative to the panel, 48 dp targets / 8 dp gaps, text fit; `scripts/popup_layout_check.cs` flags small targets, overflow, off-panel, overlaps |

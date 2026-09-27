@@ -1,6 +1,6 @@
 ---
 name: unity-runtime-ui-rules
-description: Use when writing or fixing runtime uGUI code in any Unity game — HUD/layout that looks shrunk or wrong after rotation, Game view resize, safe-area or banner changes; a popup drawn under world content or other UI; a nested canvas that stays visible when its popup closes; overrideSorting that "doesn't work"; tutorial hands or pointers that drift off target; reparenting children of a prefab instance.
+description: Use when writing or fixing runtime uGUI code in any Unity game — HUD/layout that looks shrunk or wrong after rotation, Game view resize, safe-area or banner changes; a popup drawn under world content or other UI; a nested canvas that stays visible when its popup closes; overrideSorting that "doesn't work"; tutorial hands or pointers that drift off target; reparenting children of a prefab instance; a dim or mask that will not darken or draws over the wrong UI (custom shader render queue).
 ---
 
 # Runtime uGUI rules that kept causing rework
@@ -87,6 +87,18 @@ Read the real canvas rect. Narrow-aspect fixes: `unity-ui-narrow-aspect-fit`.
 A forced tutorial/intro must block every other input path explicitly (board
 taps, other buttons) in code, not only visually with a dim — raycasts through
 a separate board camera are not stopped by a UI dim.
+
+## 8. A custom UI shader's render queue beats hierarchy order
+
+A UI shader with a non-default `Queue` (e.g. `"Queue"="Overlay"`, ported from
+another project) draws by queue first, so on a Screen Space canvas it ignores
+sibling order: a dim sitting below the popup in the hierarchy still draws over
+it, or a mask never darkens. Check the shader's `Tags` before debugging sprite
+alpha, sorting order or the renderer. Use `"Queue"="Transparent"` like the
+default UI shader unless ignoring hierarchy order is the point.
+
+Seen: a tutorial dim worked on a world-space popup but never darkened the
+ScreenSpaceCamera HUD; four wrong theories before the `Queue` tag was found.
 
 ## Rules
 

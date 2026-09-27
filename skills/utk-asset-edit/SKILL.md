@@ -1,6 +1,6 @@
 ---
 name: utk-asset-edit
-description: Use when renaming, retargeting, or tweaking Unity assets stored as text (YAML) — prefab/asset renames, m_Name changes, serialized field value tweaks, GUID reference swaps, bulk find-and-replace — and you must decide between editing files directly and going through the editor with utk.
+description: Use when renaming, retargeting, or tweaking Unity assets stored as text (YAML) — prefab/asset renames, m_Name changes, serialized field value tweaks, GUID reference swaps, bulk find-and-replace — and you must decide between editing files directly and going through the editor with utk. Also before ANY direct write (Python, sed, Edit) to a `.unity`/`.prefab`/`.asset` file while the Editor is open, and when such a write fails with `OSError: [Errno 22] Invalid argument`.
 ---
 
 # Unity Asset Edits — Direct YAML vs `utk`
@@ -91,6 +91,13 @@ window. Either way the edit still costs a 30-60s stall, so don't rely on it.
   Editor's copy and overwrites the pull on the next save — which is why
   `utk`'s automatic answer is Reload. If you had unsaved in-Editor changes to
   that scene, save them (or set `UTK_NO_AUTO_DIALOG=1`) *before* the pull.
+
+### Python `open(p, 'w')` fails with `OSError: [Errno 22] Invalid argument`
+
+Seen on Windows writing `.cs`/`.unity`/`.prefab` under `Assets/` while the
+Editor has the project open. The file is not corrupted — don't spend a turn
+diagnosing it. Redo the same change with the `Edit` tool or `sed -i`; both
+worked every time on the same file right after.
 
 ### Dirty scenes: never let the save prompt decide
 
