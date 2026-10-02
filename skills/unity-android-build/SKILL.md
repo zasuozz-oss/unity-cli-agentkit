@@ -1,6 +1,6 @@
 ---
 name: unity-android-build
-description: "Use when exporting Unity to Android Studio, configuring Gradle builds, troubleshooting missing ./gradlew, managing build upload scripts, or uploading Android debug symbols."
+description: "Use when exporting Unity to Android Studio, configuring Gradle builds, troubleshooting missing ./gradlew, managing build upload scripts, uploading Android debug symbols, or when an export fails to sync in Android Studio (incompatible AGP version, CXX1100 ndkVersion/ndkPath mismatch), `utk build` yields a Gradle folder instead of an APK, or a crash sits inside a packaged SDK `.aar`."
 ---
 
 # Unity Android Studio Export & Gradle Builds
@@ -30,6 +30,27 @@ Guidelines for managing Unity Android Studio exports, Gradle builds, automated u
 - ✅ Store keystore credentials in environment variables or `local.properties` rather than hardcoding them in VCS tracked files.
 - ❌ **NEVER** attempt to run `./gradlew` commands inside a path that has spaces unless paths are properly escaped in the shell.
 - ❌ **NEVER** ignore gradle build cache issues; run `./gradlew clean` if changes to resources or manifest do not apply.
+
+## Errors that keep coming back
+
+Fix them in the **Unity template** (`Assets/Plugins/Android/*Template.gradle`)
+so the next export carries the fix, *and* patch the already-exported project
+so the user can just re-sync. A sibling project that builds is the fastest
+reference: diff its templates first.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Android Studio: `incompatible version (AGP 9.0.0) … Latest supported version is AGP 8.x` | The Unity version's default AGP is newer than the user's Android Studio | Add/edit `baseProjectTemplate.gradle` and pin `com.android.application`/`library` to the supported version |
+| `[CXX1100] android.ndkVersion is [A] but android.ndkPath … refers to a different version [B]` | `mainTemplate.gradle` sets `ndkPath` without `ndkVersion`, so AGP picks its own default NDK | Add `ndkVersion "**NDKVERSION**"` right under `ndkPath "**NDKPATH**"` |
+| `utk build` produced a folder, not an APK to `adb install` | `EditorUserBuildSettings.exportAsGoogleAndroidProject` is on (lives in `Library/`, not git) | Set it `false` via `utk exec` for the build, restore it after; also check `buildAppBundle` / `development` |
+| Unity build stops on "mainTemplate.gradle needs to be updated! … deprecated properties" | Template predates the Unity upgrade | A modal — `Yes` rewrites the template (keeps a backup). Ask the user; never click blind |
+| Crash inside a packaged SDK Activity (e.g. `FBUnityLoginActivity.onCreate` NPE after Android killed the process) | Bug in the SDK's own Java class — C# and manifest can't reach it | `javap -c` the class from the `.aar` to confirm the line; prefer an SDK update. Patching the class means re-packing the `.aar`: keep the original as a backup, note it in the manifest, and say it is unverified until reproduced on a device (`@unity-device-testing`) |
+| A helper `.command` copied into the export won't open on another Mac: "Apple could not verify…" | `com.apple.quarantine` was added when the file travelled (zip, chat, AirDrop) | The post-build step runs `xattr -d com.apple.quarantine <file>`; reproduce with `xattr -w com.apple.quarantine …` |
+
+**Files that must travel with every export** (symbol upload, a prod-config
+check script) are copied by an `[PostProcessBuild]`/`IPostprocessBuildWithReport`
+Editor hook from inside the Unity project. Never hand-place them in the export
+folder — the next export deletes them.
 
 ## Few-Shot Examples
 
@@ -89,3 +110,5 @@ android {
 
 ## Related Skills
 - `@utk-test-runner` - For compiling and running the project's tests before launching a build.
+- `@unity-device-testing` - Installing the build and reproducing a device-only crash.
+- `@release-production` - Dev ↔ prod config and version bump before a store build.

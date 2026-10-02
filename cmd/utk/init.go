@@ -7,11 +7,33 @@ import (
 	"github.com/zasuo/unity-cli-agentkit/internal/initcmd"
 )
 
+const initUsage = `usage: utk init [--uninstall]
+  (run from a Unity project root)
+  utk init              install/refresh the kit's skills in .claude/skills, the
+                        CLAUDE.md/AGENTS.md guidance block, and com.unity.pipeline
+                        — replaces any local edits to the installed skills
+  utk init --uninstall  remove the project pointers
+`
+
 func runInit(args []string) int {
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "utk:", err)
 		return 1
+	}
+	// init rewrites the installed skills and the CLAUDE.md/AGENTS.md block, so
+	// an agent probing `utk init --help` must not get a real run: answer help,
+	// refuse anything else unknown before touching the project.
+	for _, a := range args {
+		switch a {
+		case "--help", "-h", "help":
+			fmt.Fprint(os.Stdout, initUsage)
+			return 0
+		case "--uninstall":
+		default:
+			fmt.Fprintf(os.Stderr, "utk init: unknown argument %q\n%s", a, initUsage)
+			return 2
+		}
 	}
 	for _, a := range args {
 		if a == "--uninstall" {

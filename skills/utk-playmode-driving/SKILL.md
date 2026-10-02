@@ -1,6 +1,6 @@
 ---
 name: utk-playmode-driving
-description: Use when an agent has to drive Play mode unattended through `utk` — entering play, waiting for a scene to be ready, stepping frames on an unfocused Editor, screenshotting a runtime state, setting the Game view resolution, or when `editor refresh`/`run_tests`/`exec` hang or fail around play mode ("This cannot be used during play mode", "please use EditorSceneManager.OpenScene", a screenshot stuck on the loading screen), or when the Editor hangs / stops answering / only progresses while its window is focused.
+description: Use when an agent has to drive Play mode unattended through `utk` — entering play, waiting for a scene to be ready, stepping frames on an unfocused Editor, screenshotting a runtime state, setting the Game view resolution, or when `editor refresh`/`run_tests`/`exec` hang or fail around play mode ("This cannot be used during play mode", "please use EditorSceneManager.OpenScene", a screenshot stuck on the loading screen), or when the Editor hangs / stops answering / only progresses while its window is focused, or runtime state looks impossible (errors that appear only mid-Play, values surviving Stop → Play, every tween frozen).
 ---
 
 # Driving Play Mode Unattended
@@ -107,6 +107,44 @@ utk screenshot --max 1024
 - `isPaused` persists. Unpause (or `utk editor stop`) when you're done, or the
   next person to press Play sees a frozen game.
 
+## A/B a fix at runtime (repro without reverting code)
+
+When the fix is already compiled in, get the "before" run by removing the fix
+**in the running game**, not by reverting and recompiling. Typical case: the
+fix subscribes a handler to an event — strip that delegate from the event's
+backing field:
+
+```csharp
+// AgentScripts/ab_disable_fix.cs — placeholders: <OWNER_TYPE>, <EVENT_FIELD>, <FIX_TYPE>
+var inst = UnityEngine.Object.FindAnyObjectByType<<OWNER_TYPE>>();
+var f = typeof(<OWNER_TYPE>).GetField("<EVENT_FIELD>",
+    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+var d = (System.Action)f.GetValue(inst);
+int removed = 0;
+if (d != null)
+    foreach (var x in d.GetInvocationList())
+        if (x.Target is <FIX_TYPE>) { d -= (System.Action)x; removed++; }
+f.SetValue(inst, d);
+return $"removed={removed}";                // 0 = wrong field/type, not a repro
+```
+
+Then drive the STR **step by step with `utk exec`**, calling the same public
+handlers the buttons call (`OnClick…`, `Open…`, `Close…`) — find them from the
+button's `onClick` or the prefab, not by guessing. After each step print **one
+compact state line** from a reusable probe file:
+
+```
+step=3 tab=Profile widget.active=False topPopup=DetailsPanel navStack=[Home,Profile,Details]
+```
+
+Keep the probe as `AgentScripts/probe.cs` (`utk exec --file`) so both runs
+print identical lines. Re-enter Play (the fix comes back) and run the
+**identical** step script: the diff between the two logs is the evidence.
+
+A full-screen panel can cover the widget in a screenshot, so it "looks hidden"
+in both runs. Trust the state line (`activeSelf`, alpha, parent active); use
+the screenshot only as a supplement.
+
 ## Pick the scene API by mode
 
 Two opposite failures, both seen repeatedly:
@@ -131,6 +169,17 @@ utk editor stop; utk editor refresh && utk run_tests --mode editor
 An `exec` sent in the instant play mode starts can come back as a network
 error: entering play reloads the domain and drops the in-flight request. Retry
 once after it settles; don't treat it as a dead connection.
+
+## State that lies to you in Play mode
+
+Check these before debugging "impossible" runtime state:
+
+| Symptom | Cause | Check / fix |
+|---|---|---|
+| Errors from nowhere mid-Play: a singleton `Instance` is null, `Awake` state missing, a SmartFormat/`LocalizeStringEvent` "`null` is not a valid choice" | Scripts **recompiled while playing** (Preferences → Script Changes While Playing = Recompile And Continue). Statics and non-serialized fields are wiped | `Editor.log` has `Reloading assemblies after finishing script compilation` during the Play session. Re-enter Play; don't patch code for it |
+| Values your own earlier test set come back next Play (pinned timestamp, flag, cache); negative/stuck counters | **Domain reload on Enter Play is off**, so a static you set via `utk exec` survives Stop → Play | `EditorSettings.enterPlayModeOptionsEnabled`. Restore every static you set; or `utk editor refresh` to force a reload. Suspect your own hack first |
+| Every DOTween/animation frozen, "scale still 0 after 1s" | `Time.timeScale == 0` (an ad SDK, a pause menu) and the tween isn't `SetUpdate(true)` | `return Time.timeScale;`. Set it to 1 for the test run; not a popup bug |
+| Timing measurement is wildly off | Editor is paused — an `exec` timeout or Error Pause left `isPaused = true` | `return EditorApplication.isPaused;` before measuring; unpause and re-measure |
 
 ## Game view resolution has no verb
 

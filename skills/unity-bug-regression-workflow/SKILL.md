@@ -1,6 +1,6 @@
 ---
 name: unity-bug-regression-workflow
-description: "Use when starting any bug fix from a bug report (version/build, description, steps to reproduce) — the bug must be reproduced in the Editor or by a failing test before any fix is written — when a bug 'came back', regressed, or was fixed before, or before changing error routing, badge, or state-machine logic."
+description: "Use when starting any bug fix from a bug report (version/build, description, steps to reproduce) — the bug must be reproduced in the Editor or by a failing test before any fix is written — when a bug 'came back', regressed, or was fixed before, or before changing error routing, badge, or state-machine logic. Also for UI-state bugs that appear after navigating: a bar/button/widget hidden or shown wrongly after moving between screens, show/hide state lost across panel navigation — "bị ẩn sau khi thao tác", "mất … sau khi chuyển màn", "thỉnh thoảng bị", "một số thao tác", "không nhớ bước nào"."
 ---
 
 # Unity Bug Fix & Regression Workflow
@@ -31,7 +31,11 @@ No fix is written until the bug has been **seen failing on the current code**, b
 | **Logic repro** (preferred) | The fault lives in C# logic that can run without the scene: calculations, state machines, parsers, routing, save data | Write a test that feeds the report's inputs and asserts the *expected* behaviour (`@unity-editmode-tests`), then run it with `utk run_tests --mode editor --filter <TestName>`. It must **fail with the report's symptom** — a compile error or an unrelated assert is not a repro. For a one-off check, call the method directly with `utk exec` (`@utk-exec-query`). |
 | **Editor repro** | The fault needs the scene, UI, timing, animation or input | Follow the STR in Play Mode through `@utk-playmode-driving`, then capture evidence: `utk console --type error` (`@utk-console-triage`), `utk exec` reading the wrong value from live state, and a `utk screenshot`. |
 
+**A plausible root cause from reading code is not a repro.** Navigation/state bugs usually have several paths that reach the same symptom, and the one you reasoned out is often not the one the user hit. Also confirm **which class really backs the screen** (inspect the live panel with `utk exec`, not a similarly named controller) and name it in the report.
+
 Before touching code, write down the repro: the exact commands or steps, the observed result, and the expected result. That record is the proof the bug existed.
+
+**Fix already compiled in?** Don't revert the code to get a "before" run — disable the fix at runtime and A/B it with one script (`@utk-playmode-driving` → "A/B a fix at runtime").
 
 After the fix, run **the same repro** again and show that it now passes. A logic-repro test stays in the suite as the regression guard. An Editor repro stays as the STR that the next fix must re-run.
 

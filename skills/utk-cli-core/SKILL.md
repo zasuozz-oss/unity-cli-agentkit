@@ -1,6 +1,6 @@
 ---
 name: utk-cli-core
-description: Use when working in a Unity Editor project (Assets/ and ProjectSettings/ present) and you need to drive, inspect, or automate the live Editor — entering play mode, reading the console, running C#, running tests, or checking editor/connection state.
+description: Use when working in a Unity Editor project (Assets/ and ProjectSettings/ present) and you need to drive, inspect, or automate the live Editor — entering play mode, reading the console, running C#, running tests, or checking editor/connection state — including when `utk` fails with `401 Unauthorized`, `UNREACHABLE`, or two Unity Editors (projects) are open at once.
 ---
 
 # Unity CLI — Token-Lean Core
@@ -52,6 +52,9 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   (up to 30 min, exit non-zero unless `Succeeded`); the completed report drops
   the per-file inventory. Start it with `run_in_background: true` — the harness
   notifies you when it exits. `--wait false` gives the raw async hand-off.
+- **No `timeout` on macOS** — the command does not exist by default (exit
+  127, the wrapped command never runs). Use the Bash tool's timeout parameter,
+  `utk`'s own `--timeout`, or `gtimeout` if coreutils is installed.
 - Anything that can run past ~2 minutes (`build`, `run_tests` on an assembly,
   `editor refresh` after a big change) goes to the background the same way.
   Never wrap a `utk` status verb in `for … sleep` — the blocking verbs exist so
@@ -182,6 +185,35 @@ route around it: `utk status` for the pipeline version, `utk list --grep <word>`
 for the current name, then update whichever side is behind (rebuild `utk`, or
 `unity pipeline install --package-version <v>`).
 
+## `401 Unauthorized` / `UNREACHABLE` with two Editors open
+`COMMAND_FAILED: Pipeline server returned 401 Unauthorized … Missing or
+invalid authentication token` (exit 6) is not a compile error and not "Editor
+dead". Read the `utk status` table first — it has one row per Editor:
+
+```
+DU11  pipeline 0.8.0-exp.1  pid 14386  port 7800  reachable
+SDU   pipeline 0.7.0-exp.1 OUTDATED…   pid 85544  port 7800  UNREACHABLE
+```
+
+- **Two rows on the same port** → the Editors are fighting over it; requests
+  for one project reach the other and are refused. The row marked `OUTDATED`
+  is the one that can't move to the next port: upgrade its pipeline
+  (`unity pipeline install --package-version <v>` in that project), focus that
+  Editor so it re-resolves, and it comes up on 7801. Or ask the user to close
+  the Editor you don't need. Retrying the command changes nothing.
+- **One row, 401 right after a compile/domain reload** → the token was
+  rotated. `utk status >/dev/null` then retry the command once. Still 401 after
+  that → treat it as the case above.
+- Couldn't get through? Say "not compiled / not verified" in the report —
+  never "done".
+
+## Multiple projects on one machine
+Sibling projects (same studio, copied code) look alike. Before editing, check
+`git rev-parse --show-toplevel` is the project the user named — most of all
+for tuning/visual requests that don't name a file. Edited the wrong one?
+Reverse **only your own hunks** by hand; `git checkout <file>` also throws away
+the user's uncommitted work in that file.
+
 ## Setup
 First time in a project, run `utk init` from the project root: it installs
 these skills, the AGENTS.md/CLAUDE.md pointer, and runs `unity pipeline install`
@@ -189,3 +221,8 @@ for the project. It refuses to run outside a Unity project. If the Editor was
 already open, focus its window once (or reopen the project) so
 `com.unity.pipeline` resolves, then verify with `utk status` — it lists each
 editor instance with its pipeline version, PID, port and reachability.
+
+The installed skills under `.claude/skills/` are **copies** that `utk init`
+replaces on every run — a rule the user asks you to "add to the skill" and
+that you write only there is gone after the next init. Put it in the kit's
+own `skills/` (or the project's `CLAUDE.md`), and say where it went.

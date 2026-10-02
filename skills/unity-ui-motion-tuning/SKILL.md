@@ -116,6 +116,12 @@ would ship and say what the others looked like. One exchange instead of eight:
   the duration of the tween, or tween a child the driver does not control (see
   unity-ugui-layout).
 
+- **"I don't see the shake/punch at all."** Sample the value, don't eyeball
+  it: scrub the tween (Rule 2) and print the angle per step. All zeros means
+  the parameters produce no motion — `DOShakeRotation` with `randomness: 0`
+  barely moves, `DOPunchRotation` only tilts one way. For a visible symmetric
+  wobble, build it: a short sequence of `DORotate` to `+a, -a·0.6, +a·0.3, 0`.
+
 ## Choreography patterns that hold up
 
 - **Swap two values through one mask.** An old number sliding out while the new

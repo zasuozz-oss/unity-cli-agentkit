@@ -61,6 +61,16 @@ never promised.
   that "clear" cannot remove. An "impossible" owned item may just be history.
 - Before calling it a client bug, read the **raw ownership/state endpoint**.
   If the server says it is owned, the display is right.
+- **Client or server? Ask the wire first.** For a wrong badge/icon/count, or a
+  feature that silently does nothing: take the session token from the running
+  game with `utk exec` (write it to a temp file, delete it after) or create a
+  fresh guest through the identifier endpoint, then `curl` the endpoint. A
+  wrong id in the payload is a server/CMS bug — report it with the response,
+  don't patch the client. A downloaded CDN image with alpha 255 on every pixel
+  is an asset problem, not a shader one.
+- **A feature dead with no client error** → read the raw HTTP body. A refusal
+  like `require version_code >= N` means a gate param is missing: add it once
+  in the shared request path (`Send()`), never per endpoint.
 - Use a fresh account for the real progression pass, and verify the fresh
   baseline by reading live state (level, flags, owned count all at their
   initial values) before running cases. Back up and restore local prefs around
@@ -82,6 +92,12 @@ never promised.
 - **Never trust array order from a list API.** "Server-configured, don't
   hardcode values" does not mean the order is stable. Sort explicitly by the
   field that defines order, and put unset values in a defined place.
+- **Past rows can change state.** Config edited mid-run (a day-3 gift
+  changed while the user is on day 6) can flip an old row from `claimed` back
+  to `claimable`. Celebrate only the milestone equal to the current counter,
+  not "any claimable row". Hide an ITEM reward whose id is not in the item data
+  instead of drawing an empty slot. Add "server changed an old row" to the
+  test matrix.
 - **Render full catalogs from the catalog endpoint.** A view that renders only
   the current window of progress data silently omits everything outside it.
 

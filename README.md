@@ -316,6 +316,7 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 | `utk-playmode-driving` | Driving Play mode unattended: autotick, `wait_for`, frame stepping, Game view size |
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
+| `utk-profiling` | Measuring lag/hitches/FPS drops with the Profiler through `utk` (Editor Play or a dev build on device) instead of guessing; `scripts/prof_spikes.cs` breaks the slowest frames down by marker |
 
 Workflow skills distilled from real rework (game-agnostic; each routes to the
 skills above/below before adding its own rules):
@@ -328,6 +329,11 @@ skills above/below before adding its own rules):
 | `unity-live-editor-loop` | The build → test → Play → screenshot loop in the open Editor: symptom → skill table, backporting hand edits, capture recipe |
 | `unity-popup-layout` | Carrying the game's own popup layout into Unity (no imposed layout): positions relative to the panel, 48 dp targets / 8 dp gaps, text fit; `scripts/popup_layout_check.cs` flags small targets, overflow, off-panel, overlaps |
 | `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / COVERS OVERLAY (tooltips, toasts) / TIE / INPUT LEAK |
+| `unity-analytics-tracking-plan-sync` | Syncing a Google Sheet tracking plan with analytics code: per-event audit (fired, params, types, double-fire), guarded Apps Script writes, Notes conventions; `scripts/dump_sheet.gs` + `scripts/guarded_write.gs` |
+| `unity-device-testing` | Testing on a real Android/iOS device: build → install (adb / `xcrun devicectl`) → launch with log capture → drive → screenshots/crashes → report; Firebase debug mode + event log for analytics |
+| `release-production` | Cutting a production build: dev ↔ prod config per game from `app-config-checklist.md` (ad keys, Firebase files, package/bundle id, Android vs iOS), version bump, tidy; `scripts/release_config.py` (init / check / apply / next-version / set-version / tidy / setting) |
+| `unity-plugin-sync` | Bringing a plugin/SDK from a sibling project or another machine: GUID/namespace diff on overwrite, native libs git doesn't carry (`DllNotFoundException`), `.unitypackage` hand-off of ignored files |
+| `unity-spine-cli` | Spine Editor from the shell: export `.spine`/`.skel` to JSON, diff the Spine project against what Unity ships, script an animation as JSON, render previews, round-trip check before replacing `.skel.bytes` |
 | `unity-ui-sprite-distortion` | Stretched icons and warped fill/progress bars: Simple vs Sliced vs Filled, 9-slice border minimums, width-driven bars, layout-driven icon sizes; `scripts/sprite_distortion_audit.cs` flags STRETCH / SLICED-NO-BORDER / SLICE-SQUASH / FILLED-STRETCH / SCALE / SHRUNK |
 
 …and 31 advisory skills, vendored from

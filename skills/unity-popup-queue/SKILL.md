@@ -66,6 +66,19 @@ Back-stack navigation (back button, drag-to-close, stacking the same panel) is
   shows the old one again.
 - A local "seen" flag deduplicates display. It is not truth, so do not use it
   to decide whether the event happened.
+- **Eligibility comes from server state, not a local counter.** "Show the
+  login popup to guests at the start of each session" must ask the loaded
+  account ("is it linked?"), and wait until that data has loaded. A
+  PlayerPrefs counter or "last login method" key fails in the *suppressing*
+  direction: logout runs `PlayerPrefs.DeleteAll()`, an upgrade from a build
+  that never wrote the key, a reinstall — and the popup silently never shows.
+  Re-evaluate on account switch. Test by deleting the local key in Play.
+- **A popup opened only as a backdrop for a notice closes with it.** If a rule
+  opens screen A just to show notice B on top, B's close closes A too —
+  otherwise one event costs the player two dismissals.
+- **Temporarily disabling a popup**: put one reversible flag at the single
+  gate every caller passes through (the "detect" step), and don't record the
+  event as shown while disabled — re-enabling must show it correctly.
 - **"Show X after Y" means chain from Y's completion.** Raise the overlay from
   the first popup's show-complete callback, and call the **same** open method
   the manual button calls, so it animates exactly like a user tap. Only the

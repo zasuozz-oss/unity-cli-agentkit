@@ -38,6 +38,21 @@ most frequent failures after the three above:
   can skip.
 - **`FindAnyObjectByType<T>(true)` does not exist** in Unity 6 — the flag is an
   enum: `UnityEngine.Object.FindAnyObjectByType<T>(UnityEngine.FindObjectsInactive.Include)`.
+- **Extension methods from other namespaces don't resolve** — there is no
+  `using`, so `task.Forget()` fails with CS1061 (`'UniTask' does not contain a
+  definition for 'Forget'`). Call the static form:
+  `Cysharp.Threading.Tasks.UniTaskExtensions.Forget(task)`,
+  `System.Linq.Enumerable.Where(list, x => …)`. Same for any project extension.
+- **"The type 'X' exists in both 'A' and 'B'"** (CS0433) — the snippet sees
+  every assembly, and some packages embed a copy (`JsonConvert` is in
+  `Newtonsoft.Json` *and* `Unity.Localization.ThirdParty.Editor`). Go through
+  reflection: `System.Type.GetType("Newtonsoft.Json.JsonConvert, Newtonsoft.Json")`
+  — the assembly-qualified name picks one.
+- **`INVALID_COMMAND_ARGS … timeout is already set by --timeout, so there is
+  no slot for <a fragment of your code>`** — a C# char literal (`' '`, `'/'`)
+  closed the shell's single quotes and split the snippet into several
+  arguments. Use `"…"` strings in the snippet, or put it in a file and run
+  `utk exec --file`.
 - **`UniTask<T>` has no `.Forget()`** — only the non-generic `UniTask` does.
   `await` it, or discard the result first.
 - **`dynamic` does not compile** (`Missing compiler required member
