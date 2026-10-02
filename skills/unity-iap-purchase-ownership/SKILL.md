@@ -1,6 +1,6 @@
 ---
 name: unity-iap-purchase-ownership
-description: "Use when adding or debugging in-app purchases, receipt/server confirmation, or item ownership in a Unity game — a purchase charges the user but then shows an unknown error, the server rejects a confirm as already used, a signed request fails with 'signature expired' after the payment sheet, a bought item still shows as locked until the screen is re-entered, a buy button does nothing after an item's uses run out, a count shown in a header disagrees with the items rendered, or new server-side gating fields must also protect already-shipped client builds."
+description: "Use when adding or debugging in-app purchases, receipt/server confirmation, or item ownership in a Unity game — a purchase charges the user but then shows an unknown error, the server rejects a confirm as already used, a signed request fails with 'signature expired' after the payment sheet, a bought item still shows as locked until the screen is re-entered, a buy button does nothing after an item's uses run out, a count shown in a header disagrees with the items rendered, new server-side gating fields must also protect already-shipped client builds, or a price label shows a different currency/format between launches."
 ---
 
 # IAP & Ownership — Three Systems That Must Agree
@@ -107,6 +107,20 @@ verified only by compile and unit tests.
   parsing "1.1.6" as `1` treats every build as ancient.
 - Adding the field to the client model also means regenerating whatever
   serializer code the project generates. Otherwise the new client drops it too.
+
+## 6b. Price labels: one getter, never a guessed currency
+
+"Sometimes `$2.99`, sometimes `79.000 đ`" on the same device = labels drawn
+before the store's product metadata arrived, falling back to `"$" + backendUsd`.
+
+- One shared getter for every price label: store's `localizedPriceString` →
+  else the **last known localized price** cached (PlayerPrefs, per product id)
+  → else empty. Never synthesize a currency from the backend's USD number.
+- Empty → the label shows a spinner/placeholder, not a wrong price.
+- Raise a "prices loaded" event when the store init finishes — **also on
+  failure** — and have every price label subscribe and redraw, including ones
+  already on screen.
+- Fix it in the getter; patching each popup leaves the next one wrong.
 
 ## 7. Verify honestly
 

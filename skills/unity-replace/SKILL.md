@@ -89,6 +89,12 @@ git -C "$UNITY" diff --stat        # expect only the PNG (+ YAML lines you meant
 ```
 
 - `.meta` in the diff → something re-imported it as new; restore it from git.
+- Sprite packed in a `.spriteatlas` (`grep -l <guid> **/*.spriteatlas`)? The
+  Game view keeps drawing the old packed page until you repack:
+  `UnityEditor.U2D.SpriteAtlasUtility.PackAllAtlases(UnityEditor.EditorUserBuildSettings.activeBuildTarget);`
+  — then screenshot.
+- 9-slice sprite rendering with odd cut corners → its `.meta` has
+  `spriteMeshType: 1` (Tight); set Full Rect (`0`) like the old one had.
 - Editor reachable → screenshot one screen that uses it (`utk screenshot`,
   utk-playmode-driving) and check it at the slot size.
 - Editor not reachable → tell the user to focus Unity (or right-click →

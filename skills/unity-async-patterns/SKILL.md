@@ -345,6 +345,20 @@ _ = SomeAsyncOperation();
 SomeAsyncOperation().Forget();
 ```
 
+## SDK callbacks arrive off the main thread
+
+Native SDK callbacks (ads, consent/UMP, billing, auth) may run on a Java/ObjC
+thread. Any Unity API inside them — `PlayerPrefs`, `GameObject`, `Time`, most
+Firebase/analytics wrappers — throws `UnityException: GetInt can only be called
+from the main thread`, often only on device and often swallowed by the SDK.
+
+- ✅ Fix it once at the source when the SDK offers it — Google Mobile Ads:
+  `MobileAds.RaiseAdEventsOnUnityMainThread = true;` **before**
+  `MobileAds.Initialize`. Not one callback at a time.
+- ✅ Otherwise hop before touching Unity: `await UniTask.SwitchToMainThread();`
+  at the top of the handler, or set a `volatile` flag and act on it in `Update`.
+- ❌ Don't wrap the throwing line in try/catch — the work it was doing is lost.
+
 ## Editor Play Mode Safety
 ```csharp
 public async UniTask InitSDK(CancellationToken ct)

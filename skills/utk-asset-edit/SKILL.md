@@ -99,6 +99,28 @@ Editor has the project open. The file is not corrupted — don't spend a turn
 diagnosing it. Redo the same change with the `Edit` tool or `sed -i`; both
 worked every time on the same file right after.
 
+### Scripted edits must keep the file's line endings
+
+Many Unity projects keep `.cs`/`.unity`/`.prefab` with **CRLF**. Python
+`open(p).read()` → `write()` (text mode) converts every `\r\n` to `\n`, and
+`git diff` then shows the whole file changed — one-line fix, 900-line diff.
+
+- ✅ Check first: `file Assets/…/X.cs` ("with CRLF line terminators").
+- ✅ Prefer the `Edit` tool. In Python use `open(p, newline='')` for both read
+  and write so `\r\n` passes through untouched.
+- ✅ After any scripted edit: `git diff --stat` — a line count far above what
+  you changed means the endings flipped. Restore with
+  `perl -pi -e 's/(?<!\r)\n/\r\n/' <file>` (CRLF files only).
+
+### After a scripted save, diff the file
+
+Saving a scene/prefab from `utk exec` writes the Editor's in-memory state, and
+a reference the Editor failed to load (a missing clip, a broken GUID) is
+written back as empty — the on-disk link is gone. After every scripted save,
+`git diff <file>`: any removed `guid:` line you didn't intend → restore those
+lines from `HEAD`. Never "restore" a deleted prefab from the AssetDatabase
+cache; take it from git.
+
 ### Dirty scenes: never let the save prompt decide
 
 **"Scene(s) Have Been Modified — Do you want to save the changes you made in
@@ -149,6 +171,23 @@ duplicate/orphan entries that looked like a merge bug.
   `LocalizationEditorSettings` → `AddKey`/`AddEntry`) + `EditorUtility.SetDirty`
   + `AssetDatabase.SaveAssets()`, then grep the file to confirm.
 - ❌ Never `utk reserialize` straight after a text edit.
+
+### "Not localized" often means bound but untranslated
+
+A text can have its `LocalizeStringEvent` bound to a key and still show
+English in every language: the locale tables hold the English string as the
+value. Check **values**, not just bindings:
+
+- Keys live in `<Table> Shared Data.asset` (`m_Id` → key name); each locale
+  is `<Table>_<lang>.asset` with `m_Localized` per `m_Id`.
+- Diff every `<Table>_<lang>.asset` against `<Table>_en.asset` by `m_Id`:
+  identical non-empty value = untranslated.
+- Fix values through the editor API (`StringTable.GetEntry(key).Value = …`
+  + `EditorUtility.SetDirty` + `AssetDatabase.SaveAssets()`). A direct YAML
+  edit of `m_Localized` also works **if** followed by `utk editor refresh` and
+  no reserialize (see above: the active locale is the one that gets clobbered).
+- Verify from the loaded asset, not the file:
+  `UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Localization.Tables.StringTable>(p).GetEntry("<key>").Value`.
 
 ### Prefab edits through `utk exec` need a forced re-import to survive
 

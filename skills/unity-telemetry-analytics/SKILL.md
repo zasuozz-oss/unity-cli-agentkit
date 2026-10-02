@@ -34,6 +34,30 @@ Guidelines for managing analytics event dispatching and telemetry tracking. This
 - ✅ Verify events on device with Firebase DebugView, not the normal dashboard (normal pipeline lags hours): `adb shell setprop debug.firebase.analytics.app <package.name>` to enable, `adb shell setprop debug.firebase.analytics.app .none.` to disable.
 - ✅ Instrument funnel checkpoints around loading-phase API calls (e.g. between login-success and world-time fetch) — these gaps are where silent user drop-off hides.
 
+## "Does event X fire?" — map the gates, not just the call site
+
+Finding the `LogEvent("x")` line answers nothing. For each caller, list what
+stands between the user action and that line:
+
+- the remote-config flag that enables the feature, **and its default** (a
+  default of 0 means "never fires" until config loads/sets it);
+- cooldowns/timers and early `return`s before the log;
+- in-flight guards — no `isLoading` check means several overlapping loads,
+  each logging a request;
+- a wrapper method that exists but nothing calls (e.g. an attribution SDK's
+  purchase method next to Firebase's automatic `in_app_purchase`).
+
+A sibling project with the same SDK is the fastest diff for the missing guard.
+Prove it with DebugView on a device, not by reading.
+
+**Naming a new param:** "is it a valid name" and "does it collide" are two
+questions — answer the second from Firebase's *Automatically collected events*
+page (fetch it; don't answer from memory): SDK-logged events such as
+`ad_impression` carry their own params, and a same-named custom param mixes
+two meanings in one column. Prefix custom params per project. A param shows in GA4 reports only after it is registered as
+a custom dimension; a high-cardinality one collapses to `(other)` — that data
+lives in the BigQuery export.
+
 ## Few-Shot Examples
 
 ### Example 1: Buffer and Dispatch Pattern

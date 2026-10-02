@@ -1,6 +1,6 @@
 ---
 name: unity-startup-loading
-description: "Use when working on app startup/loading screens, SDK initialization order, game data download, or bugs mentioning stuck loading, slow first load, blocked startup, or crashes on game scene entry on low-end devices."
+description: "Use when working on app startup/loading screens, SDK initialization order, game data download, or bugs mentioning stuck loading, slow first load, blocked startup, crashes on game scene entry on low-end devices, consent/UMP/GDPR delaying boot, or a loading/transition cover that opens before the content behind it is ready (old skin/model visible, then swaps)."
 ---
 
 # Unity Startup & Loading Flow
@@ -57,6 +57,50 @@ Rule: cache the *task* only while it can still succeed. Anything holding a
 faulted/cancelled result must be dropped before the next attempt — and a retry
 button must call the fresh path, not re-await the cache.
 
+## Consent (UMP / GDPR) is a boot-chain request too
+
+The consent update and form are the slowest, least reliable step in many
+boots — `ConsentInformation.Update` measured ~35-40 s on some devices even
+outside the EEA, and the form's WebView can hang outright.
+
+- ✅ Start it first (in `Awake` of the boot scene), in parallel with data
+  download, not after the loading bar.
+- ✅ Give it a hard cap, and anchor that cap to **app start**, not to when the
+  wait began: a "wait up to N s" measured from a later point silently adds the
+  earlier seconds. Clarify with the user which baseline a number means.
+- ✅ Ads init waits on consent; the *game* doesn't — on timeout, continue and
+  let ads initialise when consent lands.
+- ✅ Its callbacks may be off the main thread (`@unity-async-patterns` → "SDK
+  callbacks").
+- ✅ Measure on a device (`@unity-device-testing`): `adb shell am force-stop`,
+  `logcat -c`, then cold-launch and timestamp each phase. Confirm the
+  installed build is the one with your change before reading the numbers.
+- ❌ A fixed "fake" loading duration (`timeLoading = 5f`) on top of real work
+  — it is pure added wait.
+
+## A transition cover must wait for the work it hides
+
+A fade/cover/loading overlay that opens on a timer reveals whatever isn't
+ready yet — on a slow device the player sees the old outfit/skin/model swap
+in after the cover lifts. Gate the reveal on a **completion predicate with a
+max wait**, not on a delay:
+
+```csharp
+// hold the cover until the async apply finished, never longer than maxWait
+async UniTask HoldCoverUntil(Func<bool> done, float maxWait, CancellationToken ct)
+{
+    float t = 0f;
+    while (!done() && t < maxWait) { t += Time.unscaledDeltaTime; await UniTask.Yield(ct); }
+}
+await HoldCoverUntil(() => !model.IsApplyingSkin, 2f, ct);
+cover.Open();
+```
+
+Expose the predicate (`IsApplyingSkin`, `IsLoading`) on the component doing the
+work. If the cover is an Animator clip and a fade runs beside it, drive the
+fade's alpha from the clip's normalized time each frame — two independent
+timers drift apart on a hitch.
+
 ## Few-Shot Examples
 
 ### Example 1: Any boot-chain request needs a timeout + fallback
@@ -92,3 +136,4 @@ var config = await BootRequestAsync(_api.FetchConfigAsync, CachedConfig, ct);
 - `@unity-telemetry-analytics` - Pre-init event buffering and funnel instrumentation.
 - `@unity-popup-queue` - Popups shown during boot and the gates they hold.
 - `@unity-remote-image-flicker` - Background prefetch of images the first screens show.
+- `@unity-device-testing` - Cold-start timing on a real device.
