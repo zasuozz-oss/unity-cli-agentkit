@@ -13,6 +13,9 @@ trimmed to first + last frame automatically.
 - Warnings only: `utk console --type warning`
 - Last N logs of any kind: `utk console --limit 20` (default type is `all`)
 - Full untrimmed output (debugging the filter): add `--raw`
+- Clear before a Play smoke test: `utk clear_console` (not `console --clear`
+  or `console clear`). A `LogEntries.Clear` through `exec` does not clear what
+  `utk console` reads.
 
 `--type` takes **one** value — `all`, `log`, `warning` or `error` (it maps to
 the official `--severity`); there is no comma-separated form. Always
@@ -72,3 +75,11 @@ directly. Don't blind-loop fix-and-retry more than twice on the same error; if t
 After fixing, run `utk editor refresh` — it waits for the compile and prints
 the errors that remain, exiting non-zero while any are left. It reports compile
 errors only; for runtime or import errors, re-read `utk console --type error`.
+
+**The console keeps old entries.** After a fix, `utk console --type error`
+can still list the compile errors from the previous compile. Trust `editor
+refresh`'s own verdict (`compilationFailed:false`) and a test run, or
+`utk clear_console` then refresh and read again. Two more kinds of entry that
+are not the game's: `Failed to handle /api/exec request: Main thread operation
+timed out` is your own timed-out `exec`, and `No command named '<x>'` is a
+mistyped `utk` verb.

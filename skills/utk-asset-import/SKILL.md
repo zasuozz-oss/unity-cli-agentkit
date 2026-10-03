@@ -61,13 +61,18 @@ tool already does.
   file is invisible to the Editor until a refresh. `utk import` does the
   copy *and* the import; if you wrote the file yourself, run
   `utk editor refresh` afterwards.
+- ❌ **NEVER** copy images from another project into `Assets/` without their
+  `.meta` (or through `utk import`) — the console fills with `Unknown error
+  occurred while loading '<path>.png'`. Copy each `.meta` alongside, then
+  check `AssetDatabase.LoadAssetAtPath<Texture2D>(path) != null`.
 
 ## The reverse direction (Unity → you)
 
-The same principle applies to output: `utk screenshot` already saves to a
-file and answers with a path. For the raw capture tools
-(`capture_scene_view` / `capture_game_view`), always pass `--save_path` — the
-default answer inlines the PNG as base64 into your context.
+The same principle applies to output: `utk screenshot --output <path>` saves
+where you say and answers with the path — use it. The raw capture tools
+(`capture_scene_view` / `capture_game_view`) inline the PNG as base64 without
+`--save_path`, and with it resolve the path **under `Assets/`**: `Temp/x.png`
+lands in `Assets/Temp/x.png` and is imported with a `.meta`; `..` is refused.
 
 ## Related Skills
 

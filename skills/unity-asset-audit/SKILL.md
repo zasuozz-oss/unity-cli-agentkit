@@ -126,6 +126,9 @@ description: "Use when auditing Unity asset import settings: texture compression
 - [ ] Mobile: use **ASTC** on modern Android and iOS
 - [ ] Mobile: use **PVRTC** on legacy iOS devices
 - [ ] Set correct Texture Import Settings: Compressed format, Max Size, Mip Maps
+- [ ] **Audit the imported result, not the importer.** A texture set to "Compressed" can still import as RGBA32 on Android: mipmaps on a non-power-of-two image, or sides not a multiple of 4 under ETC2, make the importer fall back silently. Read `Texture2D.format` and `Profiler.GetRuntimeMemorySizeLong` per texture (one `utk exec`, totals by folder). In one game 290 of 452 textures had fallen back: 1128 MB → 277 MB after mipmaps off on NPOT UI art and ASTC.
+- [ ] `PlayerSettings.Android.textureCompressionFormats` lists ASTC (an old project may still default to ETC)
+- [ ] Bulk reimport: wrap it in `AssetDatabase.StartAssetEditing/StopAssetEditing`, in batches; a single huge exec dies at the main-thread timeout while the import continues (utk-exec-query → Timeouts)
 
 ### 4.2 Resolution & Memory
 - [ ] Texture resolution must match on-screen size — don't use 4096×4096 for small objects

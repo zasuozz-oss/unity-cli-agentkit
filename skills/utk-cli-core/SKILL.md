@@ -19,8 +19,10 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   command arguments and silently breaks `utk exec '<csharp>'`.
 - Run `utk list` **once** per session to discover tools; it is compacted to one
   line per tool (~150 tools). Don't re-list. Need a tool's parameters?
-  `utk list <tool>`. Looking for one by name? `utk list --grep <pattern>` —
-  the ~7.5KB listing is never produced.
+  `utk list <tool>` (`utk <tool> --help` prints the same schema). Looking for
+  one by name? `utk list --grep <pattern>` — the ~7.5KB listing is never
+  produced. Guessed verbs that do not exist: `utk refresh` is `utk editor
+  refresh`; clearing the console is `utk clear_console`.
 - Any of the ~150 official tools runs as `utk <tool> [--k v]` — output is
   envelope-stripped and compacted like every other verb.
 - Read console errors with `utk console --type error` (see utk-console-triage).
@@ -52,13 +54,29 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   (up to 30 min, exit non-zero unless `Succeeded`); the completed report drops
   the per-file inventory. Start it with `run_in_background: true` — the harness
   notifies you when it exits. `--wait false` gives the raw async hand-off.
+- **`--timeout` units differ per verb.** `exec` takes **milliseconds**
+  (default 60000; under 1000 is refused as a likely seconds value).
+  `run_tests --timeout` takes **seconds** (default 300). `run_script` uses
+  `--timeout_ms`, `wait_for` uses `--timeout_s`. A game's own `Tools/*.cs`
+  header saying `--timeout 120` means seconds — pass 120000 to `exec`.
 - **No `timeout` on macOS** — the command does not exist by default (exit
   127, the wrapped command never runs). Use the Bash tool's timeout parameter,
-  `utk`'s own `--timeout`, or `gtimeout` if coreutils is installed.
+  `utk`'s own `--timeout`, or
+  `perl -e 'alarm shift; exec @ARGV' 60 utk …`.
+- **The macOS shell is zsh**: an unquoted `$VAR` is *not* word-split. Keeping
+  flags in a string (`P="--project-path /x"; utk console $P`) hands utk one
+  argument `--project-path /x`, refused as an unknown flag — `cd` into the
+  project instead, or write `--project-path "$PWD"`. Same trap for
+  `set -- $wh` (use `${=wh}`). BSD `sed -i` needs `''`; for C# edits prefer a
+  python replace that asserts the old text occurs exactly once.
 - Anything that can run past ~2 minutes (`build`, `run_tests` on an assembly,
   `editor refresh` after a big change) goes to the background the same way.
   Never wrap a `utk` status verb in `for … sleep` — the blocking verbs exist so
-  you do not have to. Edited a .prefab/.unity/.asset as text? Run
+  you do not have to. A call that lands in the domain reload right after
+  `editor refresh`/`play`/`stop` ("Network error: An error occurred while
+  sending the request", "Cannot connect to Unity Editor Pipeline server") is
+  retried by `utk` for up to 30s. One that still escapes is not a reload any
+  more: the Editor is wedged or gone — see the hang sections below. Edited a .prefab/.unity/.asset as text? Run
   `utk reserialize <paths…>` afterward or Unity may silently corrupt it.
 - Asset renames, field tweaks, and GUID swaps are often faster as direct
   YAML/file edits than through the editor — see utk-asset-edit for the
@@ -157,6 +175,13 @@ is handled for you:
 The usual culprit is a `.unity` rewritten on disk while it was the open
 scene, by a `git pull` or a text edit: see `utk-asset-edit`.
 
+**Same symptoms at ~100% CPU** is the opposite case: the main thread is
+spinning — a test or snippet in an endless loop, a huge import — and no dialog
+will free it. Nothing cancels it from outside. Read the tail of the Editor log
+for the last test/asset, then ask the user to restart the Editor (or kill it
+**by the PID `utk status` prints**). Do not poll `test_status` for 15 minutes:
+three polls without progress is the answer.
+
 ## Project-defined tools
 The tool surface is extensible from the project side: any `static` method
 tagged `[CliCommand]` (namespace `Unity.Pipeline.Commands`, in an Editor
@@ -176,6 +201,14 @@ files overwrite each other with no error at all. Split ownership up front
 (separate ID ranges or folders per agent), and have the validator check for
 duplicate IDs. Errors in the console that your change could not have caused
 may be another agent's — check before "fixing" them.
+
+A compile error in a file you did not touch blocks **everyone** on that
+Editor: `editor refresh` answers "Scripts still have compile errors; nothing
+was recompiled" and every agent's tests run against the old assembly. It is
+the owner's to fix. Do not edit, revert or `git checkout` their file; refresh
+at most twice, then report "blocked by <file>" and stop. Three or more agents
+needing the Editor at once is the cue for one Editor per agent
+(unity-parallel-branch) — one shared Editor plus a lock queue cost hours.
 
 ## "Command Not Found" usually means a version mismatch
 The `utk` binary and the project's `com.unity.pipeline` evolve together —
@@ -215,14 +248,21 @@ Reverse **only your own hunks** by hand; `git checkout <file>` also throws away
 the user's uncommitted work in that file.
 
 ## Setup
-First time in a project, run `utk init` from the project root: it installs
-these skills, the AGENTS.md/CLAUDE.md pointer, and runs `unity pipeline install`
-for the project. It refuses to run outside a Unity project. If the Editor was
+Claude Code gets these skills and the kit's guidance from the
+`unity-cli-agentkit` plugin, installed once per user
+(`/plugin marketplace add zasuozz-oss/unity-cli-agentkit`, then
+`/plugin install unity-cli-agentkit@unity-cli-agentkit`). A project without
+`com.unity.pipeline` needs it once:
+`unity pipeline install --project-path "$PWD" --non-interactive --no-banner`
+(the plugin's session hook says so when it is missing). `utk init` does the same
+and also copies the skills to `.agents/skills` + the AGENTS.md pointer for
+Codex; it refuses to run outside a Unity project. If the Editor was
 already open, focus its window once (or reopen the project) so
 `com.unity.pipeline` resolves, then verify with `utk status` — it lists each
 editor instance with its pipeline version, PID, port and reachability.
 
-The installed skills under `.claude/skills/` are **copies** that `utk init`
-replaces on every run — a rule the user asks you to "add to the skill" and
-that you write only there is gone after the next init. Put it in the kit's
+The skills you read live in the plugin cache (`~/.claude/plugins/cache/…`)
+or, for Codex, in `.agents/skills/` copies — both are replaced on the next
+plugin update or `utk init`, so a rule the user asks you to "add to the skill"
+and that you write only there is lost. Put it in the kit's
 own `skills/` (or the project's `CLAUDE.md`), and say where it went.

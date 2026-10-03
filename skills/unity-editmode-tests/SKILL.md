@@ -1,6 +1,6 @@
 ---
 name: unity-editmode-tests
-description: "Use when writing or fixing Unity EditMode/NUnit tests, when a test assembly throws CS0246/CS0234 ('type or namespace not found') for game types in Assembly-CSharp, or when deciding whether game logic can be unit-tested at all."
+description: "Use when writing or fixing Unity EditMode/NUnit tests, when a test assembly throws CS0246/CS0234 ('type or namespace not found') for game types in Assembly-CSharp, when deciding whether game logic can be unit-tested at all, or when a test passes alone but fails in the full run, a UI test's onClick.Invoke() does nothing, or a run fails with 'Unhandled log message' / 'Destroy may not be called from edit mode'."
 ---
 
 # Unity EditMode Tests & the Assembly-CSharp Boundary
@@ -29,6 +29,18 @@ When game code lives in the predefined `Assembly-CSharp` (no asmdef) and tests l
 - ✅ Run tests through the project's editor CLI (e.g. `utk test`, `utk test --filter Ns.Class.Test`) after a compile-check.
 - ❌ **NEVER** add "Assembly-CSharp" to an asmdef's references expecting it to work — the failure is silent until CS0246.
 - ❌ **NEVER** burn time trying to fake an Assembly-CSharp interface from a test asmdef — it is structurally impossible.
+
+## Traps when tests touch UI, scenes and data
+
+| Symptom | Cause | Do instead |
+|---|---|---|
+| `button.onClick.Invoke()` does nothing | Inspector/builder-wired (persistent) listeners are `RuntimeOnly`: silent in EditMode | Assert `GetPersistentEventCount`/`GetPersistentTarget(0)`/`GetPersistentMethodName(0)`, then call that method by reflection — or test in PlayMode |
+| `SendMessage("Awake")` → `Assertion failed … 'ShouldRunBehaviour()'` | lifecycle messages do not run in EditMode | call the method by reflection |
+| `Unhandled log message: '[Error] Destroy may not be called from edit mode'` | a runtime helper calls timed `Destroy`/starts a tween | guard the helper on `Application.isPlaying`; don't paper over it with `LogAssert.Expect` |
+| Passes with `--filter`, fails in the full run (`Sequence contains more than one element`) | an earlier test left a scene open or objects alive | bisect with a temporary `[Ignore]` on suspects; every test that opens a scene or instantiates restores it in `finally`, never leaves another scene active |
+| `Expected: 7 But was: 8` after an unrelated content change | the test pins a total (rows, buttons, strings) | assert the ids/names that must exist, or "every X is wired except <named list>" |
+| CS0117 `'Assert' does not contain a definition for 'IsInRange'` | not NUnit 3 | `Assert.That(x, Is.InRange(a, b))` |
+| UI test assembly fails to compile | asmdef lacks `UnityEngine.UI`, `Unity.TextMeshPro`, `Unity.InputSystem` | add the references the code under test uses |
 
 ## Few-Shot Examples
 

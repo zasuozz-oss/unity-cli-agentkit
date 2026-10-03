@@ -11,7 +11,7 @@ description: Use when preparing, cutting, or tagging a production/release build 
 - **Mọi commit code/fix đều vào `$DEV`** (hoặc branch tính năng đang đứng, miễn không phải `$PROD`), rồi push `$DEV`. `$PROD` = `$DEV` + **đúng một commit release** chỉ chứa mã sản phẩm và version. Không bao giờ commit fix trên `$PROD`; fix cho bản release → commit trên `$DEV`, push, rồi release lại.
 - Mọi thứ riêng của từng game nằm trong `app-config-checklist.md` ở root project: bảng mã (`<!-- release-config:table -->`) và settings (`<!-- release-config:settings -->`: `dev_branch`, `prod_branch`, `tag`). Skill không chứa giá trị hay đường dẫn cố định nào.
 - **Phần viết tay trong checklist là của user**, không bao giờ xoá hay viết lại: mọi thứ nằm ngoài hai block có marker (vd mục "✅ Kiểm tra thủ công" chứa mã thật để user so bằng mắt, ghi chú, tham khảo). Chỉ sửa dòng trong bảng/settings; sau khi sửa, `git diff app-config-checklist.md` chỉ được đổi đúng các dòng đó. Thêm SDK/key mới → thêm vào bảng **và** vào mục kiểm tra thủ công nếu có.
-- Ghi/kiểm tra mã **chỉ qua script**, không sửa tay: `S=.claude/skills/release-production/scripts/release_config.py` (chạy ở root project; `python3 $S --help` có mô tả định dạng bảng).
+- Ghi/kiểm tra mã **chỉ qua script**, không sửa tay: `S=<thư mục skill này>/scripts/release_config.py` (chạy ở root project; `python3 $S --help` có mô tả định dạng bảng).
 - `check` fail ở bất kỳ bước nào → **dừng, báo nguyên văn cho user**, không commit/push.
 - Đọc tên branch từ checklist: `DEV=$(python3 $S setting dev_branch)`, `PROD=$(python3 $S setting prod_branch)`, `TAG=$(python3 $S setting tag)`.
 

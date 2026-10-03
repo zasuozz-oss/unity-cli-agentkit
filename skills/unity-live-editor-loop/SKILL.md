@@ -16,12 +16,13 @@ when the project has no copy).
 | Stuck on loading only while unfocused, autotick already on | `utk-playmode-driving` | `PlayerSettings.runInBackground = true` via `utk exec` |
 | "This cannot be used during play mode" / "use EditorSceneManager" | `utk-playmode-driving` | branch on `Application.isPlaying` |
 | `refresh` / `run_tests` hang | `utk-playmode-driving` | `utk editor stop` first |
-| "Cannot connect … pipeline server" right after a compile or sprite import | `utk-cli-core`, `utk-exec-query` | domain reload; retry ≤3 with a pause |
+| "Cannot connect … pipeline server" right after a compile or sprite import | `utk-cli-core`, `utk-exec-query` | domain reload — `utk` retries it for up to 30s by itself; still failing = Editor wedged, see the hang triage |
 | `utk test`: "already open in a running Editor" | `utk-test-runner` | batch runner needs the Editor closed; use `run_tests` against the open one |
 | Screenshot size wrong | `utk-playmode-driving` | set the Game view size first (below) |
 | Test run wiped the user's progress | `utk-test-runner` | snapshot/restore globals |
 | Game pieces/FX drawn over a popup, taps reach the board behind it | `unity-layer-audit` | run `scripts/layer_audit.cs` with the popup open |
 | Popup text spills out, buttons too small/close/off the panel, ✕ at the edge | `unity-popup-layout` | run `scripts/popup_layout_check.cs` with the popup open |
+| Another session wants the same project/Editor, or the task is heavy/risky/multi-hour | `unity-parallel-branch` | ASK the user: git branch + worktree instead of a hand copy; never create it unasked |
 
 ## 1. The build script owns the scene — backport every hand edit
 
@@ -57,6 +58,13 @@ an empty skybox because Play started in the scene the test run left behind.
    (`wait_for`, or poll `Time.frameCount`/a game flag) — never a bare sleep.
 5. Wait out transitions/fades (poll the transition's state), then screenshot.
 6. Stop Play, restore the snapshot, autotick off.
+7. **Looking at the shot costs tokens on every later call.** An image stays in
+   the context and is re-read each turn (7-day audit 2026-10-03: 1,499 image
+   reads). So: in the main session, never Read a shot. Hand it to a short
+   reviewer or subagent that returns a text verdict. If you must look, shrink
+   it first (`sips -Z 768 in.png --out /tmp/x.png`) or crop to the region in
+   question, and look once per fix, not once per attempt. Prefer a text check
+   (`utk-exec-query` rects, the audit scripts) over eyeballing.
 
 To reproduce resize/orientation bugs: enter Play at one size (e.g. landscape
 1920×1080), then change the size while playing and read the layout values

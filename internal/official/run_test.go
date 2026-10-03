@@ -93,13 +93,25 @@ func TestCaptureRetry(t *testing.T) {
 		}
 	})
 
+	// The first call after `editor play`/`refresh` lands while the reloading
+	// domain drops the socket; the CLI reports that as an HTTP send failure.
+	t.Run("network error during reload retries", func(t *testing.T) {
+		calls := fakeCLI(t, true, "Failed to execute command 'set_autotick': Network error: An error occurred while sending the request.", "")
+		if _, code := CaptureRetry([]string{"command", "x"}, io.Discard); code != 0 {
+			t.Fatalf("code = %d, want 0", code)
+		}
+		if *calls != 2 {
+			t.Fatalf("calls = %d, want 2", *calls)
+		}
+	})
+
 	t.Run("no editor gives up at once", func(t *testing.T) {
 		calls := fakeCLI(t, false, reloadErr)
 		out, code := CaptureRetry([]string{"command", "x"}, io.Discard)
 		if code != 6 {
 			t.Fatalf("code = %d, want 6", code)
 		}
-		// Waiting 8s here would only make "Unity is not running" slow to say.
+		// Waiting out the retry budget here would only make "Unity is not running" slow to say.
 		if *calls != 1 {
 			t.Fatalf("calls = %d, want 1", *calls)
 		}

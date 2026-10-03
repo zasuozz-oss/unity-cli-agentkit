@@ -4,8 +4,10 @@
 optimized for AI agents. The official `unity` binary is the transport; `utk`
 maps its own verbs onto it, strips the JSON envelope, and compresses the
 payload — console entries deduped, stacktraces trimmed, the ~150-tool listing
-folded to one line per tool. `utk init` also installs the bundled **skills** and
-a guidance block in `CLAUDE.md`/`AGENTS.md` per Unity project.
+folded to one line per tool. The bundled **skills** and guidance reach Claude
+Code through the `unity-cli-agentkit` **plugin** (installed once per user);
+`utk init` installs the pipeline package per Unity project and copies the skills
++ an `AGENTS.md` guidance block for Codex/Antigravity.
 
 - **Loss-safe** filtering: any payload that isn't the expected shape is passed
   through verbatim — it never silently drops data.
@@ -191,6 +193,31 @@ go build -o ~/.unity-cli-agentkit/bin/utk ./cmd/utk
 cp -r skills ~/.unity-cli-agentkit/
 ```
 
+### Claude Code plugin (skills + guidance, once per user)
+
+The repo is its own plugin marketplace. In Claude Code:
+
+```
+/plugin marketplace add zasuozz-oss/unity-cli-agentkit
+/plugin install unity-cli-agentkit@unity-cli-agentkit
+```
+
+- Every session, in every project, lists the kit's skills (named
+  `unity-cli-agentkit:<skill>`; about 5.5k tokens of descriptions). They load in
+  full only when used.
+- A `SessionStart` hook adds the kit's guidance block (the one `AGENTS.md`
+  gets) only when the session starts in a Unity project (`Assets/` +
+  `ProjectSettings/`). It stays quiet while that project's `CLAUDE.md` still
+  holds the block from an older `utk init`; re-run `utk init` to clear it.
+  When the project has no `com.unity.pipeline` yet, the same context tells
+  the agent to install it itself (`unity pipeline install`) before its first
+  `utk` call — so a Claude-only project needs no `utk init` at all.
+- Updates: the plugin has no pinned version, so every commit on the default
+  branch is a new version. Third-party marketplaces do not auto-update by
+  default: run `claude plugin update unity-cli-agentkit@unity-cli-agentkit`,
+  or turn on auto-update under `/plugin` → Marketplaces.
+- The plugin carries no binary: build `utk` with `setup-cli.sh` as above.
+
 ## Quick start
 
 | Task | Command |
@@ -249,8 +276,11 @@ A few tips:
 - A flag the tool does not accept is refused locally (exit 2) instead of being
   dropped silently upstream; the schema is cached under the kit home and
   refreshed when the `unity` binary changes. `UTK_NO_FLAG_CHECK=1` skips it.
-- Commands issued during a domain reload are retried for up to 8s instead of
+- Commands issued during a domain reload (refused connect, "Network error"
+  right after `editor play`/`refresh`) are retried for up to 30s instead of
   failing, so you do not have to poll `editor_status` after a recompile.
+- `utk exec --timeout` is milliseconds; a value under 1000 is refused as a
+  likely seconds value (`run_tests --timeout` counts seconds).
 - `utk editor refresh` blocks until the recompile it triggered finishes (up to
   5 minutes) and answers with `recompile_status`'s final report — the errors
   included — instead of the "started" hand-off. A failed compile exits non-zero,
@@ -278,13 +308,13 @@ A few tips:
 Run it from the root of a Unity project (needs `Assets/` and `ProjectSettings/`):
 
 ```sh
-utk init              # install skills + CLAUDE.md/AGENTS.md guidance + pipeline package
+utk init              # pipeline package + Codex skills + AGENTS.md guidance
 utk init --uninstall  # remove them
 ```
 
 `init` will:
-- Copy each kit skill **individually** into `.claude/skills/` (for Claude
-  Code) and `.agents/skills/` (for Codex/Antigravity). Each project gets its own
+- Copy each kit skill **individually** into `.agents/skills/` (for
+  Codex/Antigravity; Claude Code uses the plugin). Each project gets its own
   self-contained copy, so it never points back into the central store. Each
   install writes a `.utk-skills.json` manifest next to the copies and only ever
   creates or removes the entries listed in it, so skills already in those
@@ -292,9 +322,12 @@ utk init --uninstall  # remove them
   (Updating a kit skill means re-running `utk init` to refresh the copies.)
 - Run `unity pipeline install` for the project (best-effort, bounded timeout) —
   a failure is reported and init continues.
-- Upsert a **sentinel-delimited** guidance block into both `CLAUDE.md` (for
-  Claude Code) and `AGENTS.md` (for Codex/Antigravity) — idempotent, never
-  touching content outside the block.
+- Upsert a **sentinel-delimited** guidance block into `AGENTS.md` (for
+  Codex/Antigravity) — idempotent, never touching content outside the block.
+- Clear what an init from before the plugin left for Claude Code: the kit's
+  copies in `.claude/skills/` (per their manifest; your own skills stay) and
+  the block in `CLAUDE.md`. Left in place, those copies would load next to the
+  plugin's skills of the same name.
 
 > **If the Editor is already open**, a freshly added package does not resolve on
 > its own: focus the Unity window once (or reopen the project), then verify with
@@ -327,6 +360,7 @@ skills above/below before adding its own rules):
 | `unity-replace` | Replacing an existing sprite with re-made art (Figma/AI): same path, `.meta`/GUID kept, fit to the old pixel size |
 | `unity-runtime-ui-rules` | Runtime uGUI: reactive layout, re-pointing after refit, `overrideSorting`, nested canvases, lifting UI above a dim |
 | `unity-live-editor-loop` | The build → test → Play → screenshot loop in the open Editor: symptom → skill table, backporting hand edits, capture recipe |
+| `unity-parallel-branch` | Heavy/parallel Unity task: ASK the user to split onto a git branch + worktree (not a hand-copied folder); setup, merge under the editor lock, re-run build scripts on scene conflicts, cleanup |
 | `unity-popup-layout` | Carrying the game's own popup layout into Unity (no imposed layout): positions relative to the panel, 48 dp targets / 8 dp gaps, text fit; `scripts/popup_layout_check.cs` flags small targets, overflow, off-panel, overlaps |
 | `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / COVERS OVERLAY (tooltips, toasts) / TIE / INPUT LEAK |
 | `unity-analytics-tracking-plan-sync` | Syncing a Google Sheet tracking plan with analytics code: per-event audit (fired, params, types, double-fire), guarded Apps Script writes, Notes conventions; `scripts/dump_sheet.gs` + `scripts/guarded_write.gs` |
@@ -335,6 +369,9 @@ skills above/below before adding its own rules):
 | `unity-plugin-sync` | Bringing a plugin/SDK from a sibling project or another machine: GUID/namespace diff on overwrite, native libs git doesn't carry (`DllNotFoundException`), `.unitypackage` hand-off of ignored files |
 | `unity-spine-cli` | Spine Editor from the shell: export `.spine`/`.skel` to JSON, diff the Spine project against what Unity ships, script an animation as JSON, render previews, round-trip check before replacing `.skel.bytes` |
 | `unity-ui-sprite-distortion` | Stretched icons and warped fill/progress bars: Simple vs Sliced vs Filled, 9-slice border minimums, width-driven bars, layout-driven icon sizes; `scripts/sprite_distortion_audit.cs` flags STRETCH / SLICED-NO-BORDER / SLICE-SQUASH / FILLED-STRETCH / SCALE / SHRUNK |
+| `unity-record-video` | Recording a clip of the running game: Unity Recorder (real-time flows) vs FrameRecorder (`captureFramerate`, deterministic), finalize before `editor stop`, constant fps; `scripts/rec_template.cs`, `FrameRecorder.cs`, `encode.py` (labels, trim) |
+| `unity-fx-port` | Bringing particle FX from another project/pack into URP: shader remap, stripped UIParticle (renderers off), ×100 scale, 100 s lifetimes, UI centre placement; `scripts/fx_port_urp.cs`, `fx_audit.cs`, `FxBurst.cs` |
+| `unity-2d-topdown-sorting` | Front/back order on a 2D top-down map: one layer per band, foot = bottom of the showing art (not the pivot), footprints that never overlap; `scripts/YSort.cs`, `YSortGroup.cs`, `topdown_sort_audit.cs` flags STALE / TIE / FOOTPRINT |
 
 …and 31 advisory skills, vendored from
 [agentic-unity-skills](https://github.com/zasuozz-oss/antigravity-unity-skills),
@@ -347,8 +384,8 @@ agent picks them up by topic:
 | `unity-urp-*` / `unity-3d-*` | `urp-setup`, `urp-renderer-feature`, `shader-authoring`, `3d-lighting`, `3d-rendering-performance`, `3d-model-pipeline` |
 | `unity-qa-*` | `parser`, `generator`, `scorer`, `verifier` |
 
-Installing them through `utk init` replaces `ag-unity init` — running both
-installs the same skill names twice over, so pick one.
+Installing them through the plugin / `utk init` replaces `ag-unity init` —
+running both installs the same skill names twice over, so pick one.
 
 ## Migration from utk v1
 

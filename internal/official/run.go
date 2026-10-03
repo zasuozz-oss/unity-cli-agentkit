@@ -55,10 +55,17 @@ var reloadErrors = []string{
 	// With --project-path the CLI dials the project's port directly, and a
 	// reload in progress answers with a refused connect instead of the above.
 	"Cannot connect to Unity Editor Pipeline server",
+	// The first call after `editor play`/`refresh` reaches a socket the
+	// reloading domain is tearing down; the CLI's HttpClient reports that as
+	// a send failure, not a refused connect.
+	"Network error: An error occurred while sending the request",
 }
 
 const (
-	retryBudget = 8 * time.Second
+	// A play-mode or post-import reload in a mid-size project keeps the server
+	// down 10-30s; at 8s the agents' own `sleep 5` retry loops were still the
+	// norm after every `editor play`.
+	retryBudget = 30 * time.Second
 	retryStep   = 300 * time.Millisecond
 )
 
@@ -72,7 +79,7 @@ const (
 // The happy path pays nothing: only a failing call whose stderr carries a
 // reload signature waits at all. Before waiting it asks once whether an Editor
 // is up — with none the error is permanent, and stalling for the full budget
-// would only make "Unity is not running" take eight seconds to say.
+// would only make "Unity is not running" take the whole retry budget to say.
 func CaptureRetry(args []string, stderr io.Writer) ([]byte, int) {
 	out, errText, code := capture(args)
 	if code == 0 || !reloading(out, errText) || !editorRunning() {

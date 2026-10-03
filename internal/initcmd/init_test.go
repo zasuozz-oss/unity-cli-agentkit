@@ -35,14 +35,14 @@ func TestRun_OwnsVendoredNamesViaManifestOnly(t *testing.T) {
 	os.MkdirAll(skill, 0o755)
 	os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte("vendored"), 0o644)
 	// A user skill sharing the vendored naming, which the kit never installed.
-	mine := filepath.Join(proj, ".claude", "skills", "unity-mine")
+	mine := filepath.Join(proj, ".agents", "skills", "unity-mine")
 	os.MkdirAll(mine, 0o755)
 	os.WriteFile(filepath.Join(mine, "SKILL.md"), []byte("mine"), 0o644)
 
 	if err := Run(proj, kit); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := os.ReadFile(filepath.Join(proj, ".claude", "skills", "unity-ugui-layout", "SKILL.md")); err != nil || string(b) != "vendored" {
+	if b, err := os.ReadFile(filepath.Join(proj, ".agents", "skills", "unity-ugui-layout", "SKILL.md")); err != nil || string(b) != "vendored" {
 		t.Fatalf("vendored skill should be installed, got %q err %v", b, err)
 	}
 	// Kit drops the vendored skill: the next init must prune the project's copy…
@@ -50,7 +50,7 @@ func TestRun_OwnsVendoredNamesViaManifestOnly(t *testing.T) {
 	if err := Run(proj, kit); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Lstat(filepath.Join(proj, ".claude", "skills", "unity-ugui-layout")); !os.IsNotExist(err) {
+	if _, err := os.Lstat(filepath.Join(proj, ".agents", "skills", "unity-ugui-layout")); !os.IsNotExist(err) {
 		t.Fatalf("stale vendored skill must be pruned, err = %v", err)
 	}
 	// …and the user's own unity-* skill must survive prune and uninstall alike.
@@ -95,12 +95,14 @@ func skipIfNoSymlinkPrivilege(t *testing.T, err error) {
 func TestRun_DoesNotCorruptStoreWhenSkillsDirLinksToIt(t *testing.T) {
 	proj, kit := makeProject(t)
 	kitSkills := filepath.Join(kit, "skills")
-	// Make the project's .claude/skills a symlink to the kit store, as the
-	// corrupting setup did.
-	claudeDir := filepath.Join(proj, ".claude")
-	os.MkdirAll(claudeDir, 0o755)
-	if err := os.Symlink(kitSkills, filepath.Join(claudeDir, "skills")); err != nil {
-		skipIfNoSymlinkPrivilege(t, err)
+	// Make the project's skills dirs symlinks to the kit store, as the
+	// corrupting setup did: .agents is installed into, .claude is cleared as a
+	// retired host — neither may write to or delete from the store.
+	for _, dir := range []string{".agents", ".claude"} {
+		os.MkdirAll(filepath.Join(proj, dir), 0o755)
+		if err := os.Symlink(kitSkills, filepath.Join(proj, dir, "skills")); err != nil {
+			skipIfNoSymlinkPrivilege(t, err)
+		}
 	}
 	if err := Run(proj, kit); err != nil {
 		t.Fatalf("Run failed: %v", err)
@@ -136,7 +138,7 @@ func TestRun_DiscoversSymlinkedKitSkill(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 	// The content must be copied through the link.
-	b, err := os.ReadFile(filepath.Join(proj, ".claude", "skills", "utk-cli-core", "SKILL.md"))
+	b, err := os.ReadFile(filepath.Join(proj, ".agents", "skills", "utk-cli-core", "SKILL.md"))
 	if err != nil || string(b) != "hi" {
 		t.Fatalf("symlinked kit skill content should be copied, got %q err %v", b, err)
 	}
@@ -149,8 +151,9 @@ func TestRun_InstallsSkillCopiesAndManagedBlocks(t *testing.T) {
 	if err := Run(proj, kit); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
-	// Each agent dir gets a real copy of the skill (a directory, not a symlink).
-	for _, dir := range []string{".claude", ".agents"} {
+	// Codex's skills dir gets a real copy of the skill (a directory, not a
+	// symlink); Claude Code gets the skills from the plugin.
+	for _, dir := range []string{".agents"} {
 		skill := filepath.Join(proj, dir, "skills", "utk-cli-core")
 		info, err := os.Lstat(skill)
 		if err != nil {
@@ -164,19 +167,50 @@ func TestRun_InstallsSkillCopiesAndManagedBlocks(t *testing.T) {
 			t.Fatalf("%s should contain copied content, got %q err %v", skill, b, err)
 		}
 	}
-	// Managed block in both CLAUDE.md and AGENTS.md
-	for _, doc := range []string{"CLAUDE.md", "AGENTS.md"} {
-		b, err := os.ReadFile(filepath.Join(proj, doc))
-		if err != nil || !contains(string(b), BeginSentinel) {
-			t.Fatalf("expected %s with managed block, got %q err %v", doc, b, err)
+	b, err := os.ReadFile(filepath.Join(proj, "AGENTS.md"))
+	if err != nil || !contains(string(b), BeginSentinel) {
+		t.Fatalf("expected AGENTS.md with managed block, got %q err %v", b, err)
+	}
+	for _, name := range []string{"CLAUDE.md", ".claude"} {
+		if _, err := os.Stat(filepath.Join(proj, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s must not be created: the plugin serves Claude Code", name)
 		}
+	}
+}
+
+// A project set up before the plugin holds Claude Code copies of the kit
+// skills and the block in CLAUDE.md. With the plugin installed those copies
+// load twice, so init clears them — and only them.
+func TestRun_ClearsPrePluginClaudeCopies(t *testing.T) {
+	proj, kit := makeProject(t)
+	old := filepath.Join(proj, ".claude", "skills")
+	os.MkdirAll(filepath.Join(old, "utk-cli-core"), 0o755)
+	os.MkdirAll(filepath.Join(old, "unity-ugui-layout"), 0o755)
+	os.WriteFile(filepath.Join(old, manifestName), []byte(`{"skills":["unity-ugui-layout","utk-cli-core"]}`), 0o644)
+	os.MkdirAll(filepath.Join(old, "my-skill"), 0o755)
+	os.WriteFile(filepath.Join(proj, "CLAUDE.md"), []byte("# Mine\nkeep\n\n"+managedBlock()+"\n"), 0o644)
+
+	if err := Run(proj, kit); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"utk-cli-core", "unity-ugui-layout", manifestName} {
+		if _, err := os.Lstat(filepath.Join(old, name)); !os.IsNotExist(err) {
+			t.Fatalf("pre-plugin copy %s must be removed, err = %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(old, "my-skill")); err != nil {
+		t.Fatalf("user skill must survive: %v", err)
+	}
+	b, _ := os.ReadFile(filepath.Join(proj, "CLAUDE.md"))
+	if contains(string(b), BeginSentinel) || !contains(string(b), "keep") {
+		t.Fatalf("CLAUDE.md must lose the block and keep user content; got %q", b)
 	}
 }
 
 func TestRun_PreservesExistingSkills(t *testing.T) {
 	proj, kit := makeProject(t)
 	// A skill the project already had, unrelated to the kit.
-	userSkill := filepath.Join(proj, ".claude", "skills", "my-skill")
+	userSkill := filepath.Join(proj, ".agents", "skills", "my-skill")
 	if err := os.MkdirAll(userSkill, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +224,7 @@ func TestRun_PreservesExistingSkills(t *testing.T) {
 		t.Fatalf("user skill must be preserved, got %q err %v", b, err)
 	}
 	// Kit skill installed alongside it
-	if _, err := os.Lstat(filepath.Join(proj, ".claude", "skills", "utk-cli-core")); err != nil {
+	if _, err := os.Lstat(filepath.Join(proj, ".agents", "skills", "utk-cli-core")); err != nil {
 		t.Fatalf("kit skill should be installed: %v", err)
 	}
 }
@@ -200,7 +234,7 @@ func TestRun_PreservesExistingSkills(t *testing.T) {
 // that no longer exists. Re-running init must clear it.
 func TestRun_PrunesKitSkillsTheKitNoLongerShips(t *testing.T) {
 	proj, kit := makeProject(t)
-	stale := filepath.Join(proj, ".claude", "skills", "utk-gone")
+	stale := filepath.Join(proj, ".agents", "skills", "utk-gone")
 	if err := os.MkdirAll(stale, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +244,7 @@ func TestRun_PrunesKitSkillsTheKitNoLongerShips(t *testing.T) {
 	if _, err := os.Lstat(stale); !os.IsNotExist(err) {
 		t.Fatalf("stale kit skill must be removed, err = %v", err)
 	}
-	if _, err := os.Lstat(filepath.Join(proj, ".claude", "skills", "utk-cli-core")); err != nil {
+	if _, err := os.Lstat(filepath.Join(proj, ".agents", "skills", "utk-cli-core")); err != nil {
 		t.Fatalf("current kit skill should still be installed: %v", err)
 	}
 }

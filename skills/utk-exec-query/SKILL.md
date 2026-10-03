@@ -15,6 +15,13 @@ argument, so string literals arrive corrupted. Wrap the snippet in single
 quotes and use double quotes for C# strings. For anything longer than a line
 or two, put it in a file and use `utk exec --file <snippet.cs>` — that sidesteps
 the quoting rules of every shell at once, and never do `utk exec "$(cat f.cs)"`.
+`--file` is resolved from the **project root**, not the shell's cwd — pass an
+absolute path (`File not found: x.cs` after a `cd` is this).
+
+Feeding the value to a script? `UTK_NO_EXEC_LOGS=1 utk exec …` prints the
+returned value alone. Folded console lines (including warnings the Editor
+raised while the snippet ran) otherwise follow it — never parse `--raw` with
+`grep -o '"result":"…"'`, which cuts the value at its first quote.
 
 ## The snippet's contract
 
@@ -36,8 +43,11 @@ most frequent failures after the three above:
   Write `UnityEngine.Object.DestroyImmediate(...)`. `utk` retries a snippet that
   fails this way with the name qualified, but the retry costs a round-trip you
   can skip.
-- **`FindAnyObjectByType<T>(true)` does not exist** in Unity 6 — the flag is an
-  enum: `UnityEngine.Object.FindAnyObjectByType<T>(UnityEngine.FindObjectsInactive.Include)`.
+- **`FindAnyObjectByType<T>(true)` / `FindFirstObjectByType<T>(true)` do not
+  exist** in Unity 6 — the flag is an enum (CS1503 `cannot convert from 'bool'`):
+  `UnityEngine.Object.FindFirstObjectByType<T>(UnityEngine.FindObjectsInactive.Include)`.
+  The `Object.` auto-retry only rewrites statements; in a local function's
+  signature (`void Set(Object o)`) write `UnityEngine.Object` yourself.
 - **Extension methods from other namespaces don't resolve** — there is no
   `using`, so `task.Forget()` fails with CS1061 (`'UniTask' does not contain a
   definition for 'Forget'`). Call the static form:
@@ -132,7 +142,17 @@ editor loop is pumping. Typical timeout causes, in order of likelihood:
 
 The budget is `--timeout <ms>`, **default 60000** — raise it (e.g.
 `--timeout 300000`) for a snippet that legitimately does heavy work, rather
-than retrying a timeout. utk routes the one value to both the CLI transport
+than retrying a timeout. `--timeout 120` is 120 *milliseconds*; utk refuses
+values under 1000.
+
+**A timeout does not mean the snippet did nothing.** `400 … Main thread
+operation timed out` is the reply giving up; the main thread may finish the
+work afterwards (scene created, textures reimported). Check the state the
+snippet was meant to produce before re-running it — a blind re-run of a build
+script builds twice. Import-heavy snippets (hundreds of reimports) have also
+died at 30000ms regardless of `--timeout`: batch them (~50 assets per call,
+inside `AssetDatabase.StartAssetEditing`/`StopAssetEditing`) or use
+`run_script --timeout_ms`. utk routes the one value to both the CLI transport
 and the eval tool, so never pass a raw `unity command eval --timeout` yourself:
 the CLI keeps that flag (in seconds) and the tool falls back to its enforced
 5000ms default.
