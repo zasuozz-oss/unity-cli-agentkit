@@ -27,12 +27,22 @@ const legacySkillPrefix = "utk-"
 const manifestName = ".utk-skills.json"
 
 // skillsHostDirs are the per-agent directories that host the kit's skills.
-// Claude Code reads .claude/skills; Codex and Antigravity read .agents/skills.
-var skillsHostDirs = []string{".claude", ".agents"}
+// Codex and Antigravity read .agents/skills. Claude Code gets the skills and the
+// guidance from the kit's plugin instead, installed once per user.
+var skillsHostDirs = []string{".agents"}
 
 // agentDocs are the instruction files that receive the managed guidance block.
-// Claude Code reads CLAUDE.md; Codex and Antigravity read AGENTS.md.
-var agentDocs = []string{"CLAUDE.md", "AGENTS.md"}
+// Codex and Antigravity read AGENTS.md.
+var agentDocs = []string{"AGENTS.md"}
+
+// retiredHostDirs and retiredDocs held the Claude Code copies before the
+// plugin. A copy left there loads next to the plugin's skill of the same name
+// (both are listed, every session), so init clears them and uninstall still
+// knows them.
+var (
+	retiredHostDirs = []string{".claude"}
+	retiredDocs     = []string{"CLAUDE.md"}
+)
 
 // Run installs project-local pointers into proj, sourcing skills from kit
 // (kit/skills). It refuses any directory that is not a Unity project.
@@ -56,7 +66,33 @@ func Run(proj, kit string) error {
 			return err
 		}
 	}
+	for _, dir := range retiredHostDirs {
+		dest := filepath.Join(proj, dir, "skills")
+		// A skills dir linked to the kit's own store is the store: removing
+		// "kit skills" through it would delete the kit.
+		if sameDir(dest, kitSkills) {
+			continue
+		}
+		if err := removeKitSkills(dest); err != nil {
+			return err
+		}
+	}
+	for _, name := range retiredDocs {
+		if err := stripManagedBlock(filepath.Join(proj, name)); err != nil {
+			return err
+		}
+	}
 	return writeManagedBlocks(proj)
+}
+
+// sameDir reports whether a and b resolve to the same directory.
+func sameDir(a, b string) bool {
+	ra, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		return false
+	}
+	rb, err := filepath.EvalSymlinks(b)
+	return err == nil && ra == rb
 }
 
 // kitSkillNames lists the kit's own skill folders: every directory under
@@ -158,13 +194,11 @@ func installSkills(proj, agentDir, kitSkills string, names []string) error {
 		return err
 	}
 	// Guard against self-corruption: if the project's skills dir resolves to the
-	// kit's own store (e.g. .claude/skills is a symlink to <kit>/skills), copying
+	// kit's own store (e.g. .agents/skills is a symlink to <kit>/skills), copying
 	// each skill into it would copy the store entries onto themselves. The skills
 	// are already visible through that link, so there is nothing to install — skip.
-	if destReal, err := filepath.EvalSymlinks(dest); err == nil {
-		if storeReal, err := filepath.EvalSymlinks(kitSkills); err == nil && destReal == storeReal {
-			return nil
-		}
+	if sameDir(dest, kitSkills) {
+		return nil
 	}
 	// Prune kit skills the kit no longer ships. A previous init copied them in,
 	// and nothing else ever removes them — leaving an agent reading a skill for a
@@ -223,35 +257,39 @@ func writeManagedBlocks(proj string) error {
 // package the user may depend on is not utk's call. A project's other skills
 // and any content outside the managed block are preserved.
 func Uninstall(proj string) error {
-	for _, dir := range skillsHostDirs {
+	for _, dir := range append(append([]string(nil), skillsHostDirs...), retiredHostDirs...) {
 		if err := removeKitSkills(filepath.Join(proj, dir, "skills")); err != nil {
 			return err
 		}
 	}
-	for _, name := range agentDocs {
-		path := filepath.Join(proj, name)
-		b, err := os.ReadFile(path)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		// A doc init created itself holds nothing but the managed block, so
-		// writing the stripped text back leaves a 0-byte CLAUDE.md behind —
-		// the same litter removeKitSkills avoids by dropping an emptied dir.
-		rest := RemoveManagedBlock(string(b))
-		if strings.TrimSpace(rest) == "" {
-			if err := os.Remove(path); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := os.WriteFile(path, []byte(rest), 0o644); err != nil {
+	for _, name := range append(append([]string(nil), agentDocs...), retiredDocs...) {
+		if err := stripManagedBlock(filepath.Join(proj, name)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// stripManagedBlock removes the managed block from the doc at path, if any.
+func stripManagedBlock(path string) error {
+	b, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	rest := RemoveManagedBlock(string(b))
+	if rest == string(b) {
+		return nil
+	}
+	// A doc init created itself holds nothing but the managed block, so
+	// writing the stripped text back leaves a 0-byte CLAUDE.md behind —
+	// the same litter removeKitSkills avoids by dropping an emptied dir.
+	if strings.TrimSpace(rest) == "" {
+		return os.Remove(path)
+	}
+	return os.WriteFile(path, []byte(rest), 0o644)
 }
 
 // removeKitSkills deletes only the entries the kit installed (per the manifest,

@@ -42,6 +42,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, usage)
 		return 0
 	}
+	// `utk run_tests --help` reached the official CLI as `command run_tests
+	// --help`, which prints the CLI's generic usage and not one of the tool's
+	// parameters — agents then guessed flags. Answer with the tool's schema.
+	if cmd != "list" && (hasFlag(rest, "--help") || hasFlag(rest, "-h")) {
+		tool := cmd
+		if cmd == "editor" && len(rest) > 0 && editorSubMap[rest[0]] != "" {
+			tool = editorSubMap[rest[0]]
+		}
+		cmd, rest = "list", []string{tool}
+	}
 	// Unity's ForceReserializeAssets ignores paths that do not exist, and the
 	// snippet we generate returns a hardcoded "reserialized" either way — so a
 	// typo'd path reports a successful validation that never happened.
@@ -101,6 +111,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 			n, err := strconv.Atoi(v)
 			if err != nil || n <= 0 {
 				fmt.Fprintf(stderr, "utk: --timeout must be a positive integer (milliseconds), got %q\n", v)
+				return 2
+			}
+			// run_tests and the CLI transport count seconds, so a small value
+			// here is nearly always seconds — and at 120ms the snippet dies
+			// half-run, which a blind re-run then repeats.
+			if n < 1000 {
+				fmt.Fprintf(stderr, "utk: exec --timeout is milliseconds; %d ms is too short (for %d s pass --timeout %d)\n", n, n, n*1000)
 				return 2
 			}
 			execMS = n

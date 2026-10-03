@@ -45,7 +45,12 @@ its output is envelope-stripped down to a summary plus the failures, and it
 **exits non-zero when any test fails** — safe to chain with `&&`. `--mode` is
 `all | editor | playmode` (default `all`) and `--filter` is a case-insensitive
 partial match on the test name, so target an assembly or class by a fragment of
-its name.
+its name. Its `--timeout` counts **seconds** (default 300) — unlike `exec`,
+which counts milliseconds.
+
+The compact output names each failure with its message and first frame. For a
+full stack trace, re-run that one test with `--raw`, or read the NUnit report
+`TestResults.xml` the run writes under `Application.persistentDataPath`.
 
 A suite longer than 30s used to fail: `unity command` waits 30s and gives up
 while the Editor keeps running the run, leaving it unreachable behind the
@@ -64,6 +69,12 @@ running tests`, often with `Test tree is not available for
 PostbuildCleanupTask`), `test_status` would say `running` forever. `utk
 run_tests` watches the console for that entry, cancels the run and fails with
 `TEST_RUN_CRASHED` within ~15s — check `utk editor status`, then retry once.
+
+A run that dies *without* that entry looks different: no result after ~3
+minutes on a suite that normally takes one, and the Unity process at ~100%
+CPU. A test is spinning the main thread. It will not finish, and polling
+`test_status` for 15 minutes only confirms it — see utk-cli-core, "Same
+symptoms at ~100% CPU".
 
 `utk test` drives the official `unity test` batchmode runner (`utk test --help`
 for its flags), whose own JSON reports only where it wrote the NUnit report —
@@ -84,6 +95,10 @@ let the run finish.
 **Stop play mode first.** With the Editor in play mode, a queued compile waits
 for it to end, so `run_tests` (and `editor refresh`) hang to their timeout
 instead of failing: `utk editor stop; utk editor refresh && utk run_tests …`.
+
+Chain refresh and tests with `&&`, never `;`. After a failed compile the
+Editor keeps the previous assembly, so `refresh; run_tests` runs the old code
+and can report green for a change that does not compile.
 
 ## Tests share the Editor
 

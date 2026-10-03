@@ -54,7 +54,7 @@ stderr are preserved. Run ` + "`utk list`" + ` for the ~150 official tools.
                           one line per tool, one tool's schema, or a search
   utk screenshot [--max N] capture the game view, downscaled to N px (default 512)
   utk status              editor instances and pipeline reachability
-  utk init [--uninstall]  install skills + CLAUDE.md/AGENTS.md guidance
+  utk init [--uninstall]  install pipeline + Codex skills/AGENTS.md guidance
   utk <tool> [--k v]      any other official tool
 
 Flags:

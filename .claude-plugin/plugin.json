@@ -1,0 +1,10 @@
+{
+  "name": "unity-cli-agentkit",
+  "description": "Drive a live Unity Editor from Claude Code through utk: skills for exec, tests, Play mode, console, profiling and game-agnostic Unity workflows, plus the kit's guidance inside Unity projects.",
+  "author": {
+    "name": "zasuozz-oss"
+  },
+  "homepage": "https://github.com/zasuozz-oss/unity-cli-agentkit",
+  "repository": "https://github.com/zasuozz-oss/unity-cli-agentkit",
+  "keywords": ["unity", "utk", "unity-cli", "gamedev", "skills"]
+}

@@ -104,6 +104,10 @@ func TestRun_ListToolArgument(t *testing.T) {
 		{"one tool name renders the detail view", []string{"list", "eval"}, 0, "", true},
 		{"two tool names are refused", []string{"list", "eval", "recompile"}, 2, "at most one tool name", false},
 		{"a tool name with --raw is refused", []string{"list", "eval", "--raw"}, 2, "no per-tool mode", false},
+		// The official CLI answers `command eval --help` with its own generic
+		// usage, which never names a single eval parameter.
+		{"<verb> --help renders that tool's detail view", []string{"exec", "--help"}, 0, "", true},
+		{"editor <sub> -h resolves the sub-verb's tool", []string{"editor", "refresh", "-h"}, 0, "", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -121,7 +125,7 @@ func TestRun_ListToolArgument(t *testing.T) {
 			if _, err := os.Stat(argvFile); (err == nil) != c.wantCalled {
 				t.Fatalf("official CLI called = %v, want %v", err == nil, c.wantCalled)
 			}
-			if c.wantCalled && !strings.HasPrefix(stdout.String(), "eval (") {
+			if c.wantCalled && !strings.HasPrefix(stdout.String(), "eval (") && !strings.HasPrefix(stdout.String(), "recompile (") {
 				t.Fatalf("want the detail view for one tool, got %.60q", stdout.String())
 			}
 		})
@@ -175,6 +179,16 @@ func TestRun(t *testing.T) {
 			exitCode:   0,
 			wantExit:   2,
 			wantStderr: "must be a positive integer",
+		},
+		{
+			// run_tests/editor take seconds, so `--timeout 120` on exec meant two
+			// minutes and died at 120ms — after the snippet had half-run.
+			name:       "exec --timeout under 1000 is refused as a likely seconds value",
+			args:       []string{"exec", "--timeout", "120", "return 42;"},
+			body:       evalInt,
+			exitCode:   0,
+			wantExit:   2,
+			wantStderr: "--timeout 120000",
 		},
 		{
 			name:        "--raw streams the mapped argv through unchanged, no --json",

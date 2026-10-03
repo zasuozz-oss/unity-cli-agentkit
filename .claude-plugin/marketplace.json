@@ -1,0 +1,14 @@
+{
+  "name": "unity-cli-agentkit",
+  "description": "The unity-cli-agentkit plugin, served from its own repo",
+  "owner": {
+    "name": "zasuozz-oss"
+  },
+  "plugins": [
+    {
+      "name": "unity-cli-agentkit",
+      "description": "Drive a live Unity Editor from Claude Code through utk: skills plus the kit's guidance inside Unity projects.",
+      "source": "./"
+    }
+  ]
+}

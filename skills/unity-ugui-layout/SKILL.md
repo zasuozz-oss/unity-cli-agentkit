@@ -150,7 +150,9 @@ For each UI element visible in the image:
 - `autoSizing` off by default. Only for copy that changes (localisation, item names) in a fixed box: on, with `fontSizeMax` = design size and `fontSizeMin` ≈ 60 % — never unbounded (`unity-popup-layout` §4).
 - Text inside a Layout Group: add `LayoutElement.preferredHeight`; set `flexibleWidth=1` if stretch needed.
 - Multi-line text: `enableWordWrapping=true`, `alignment=Center` or `MidlineLeft` as appropriate.
-- Text inside a fixed container: `overflowMode=Truncate` or `Ellipsis`.
+- Text inside a fixed container: `overflowMode=Truncate`, or `Ellipsis` only when the font (or a fallback) has U+2026 — without it TMP warns on every rebuild (`The character used for Ellipsis is not available in font asset`) and falls back to Truncate anyway.
+- **Probe glyphs before shipping copy or symbols.** For every UI string and every symbol you add (`✓ → ↻ • …`, emoji, diacritics), check `fontAsset.HasCharacter(c, true, true)` against the font and `TMP_Settings.fallbackFontAssets` in one `utk exec`; a missing glyph renders as a box. Swap the symbol for one the font has, or add a fallback font.
+- A TMP font asset built by script renders invisible or behind sprites unless its material matches the stock one: `TMP_SDF-Mobile` shader, `material.renderQueue = 3000`, the atlas texture saved as a sub-asset, then `AssetDatabase.SaveAssets()`.
 - Text inside a CSF-driven container: `overflowMode=Overflow`, `enableWordWrapping=true`.
 
 ---

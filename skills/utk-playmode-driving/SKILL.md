@@ -22,14 +22,18 @@ loop ticking and wait on a state.** `com.unity.pipeline` 0.7+ ships both halves
 utk set_autotick --enable true             # full-rate ticks while unfocused; survives reloads this session
 utk editor play
 utk wait_for --condition '{"findType":"MyGame.GameController","member":"IsReady","op":"equals","value":true}' \
-  --tolerate_missing true --timeout_s 60 \
-  --on_met '{"capture":{"view":"game","source":"screen","save_path":"Temp/shots/game.png"}}'
+  --tolerate_missing true --timeout_s 60
+utk screenshot --output Temp/shots/game.png --max 1024
 ```
 
-- `wait_for` polls **server-side, every frame**, and `on_met.capture` shoots in
-  the same frame the condition holds — no client loop, no missed 2-second
-  screens. `source:"screen"` includes Screen Space-Overlay UI; the default
-  `camera` source misses it.
+- `wait_for` polls **server-side, every frame** — no client loop, no missed
+  2-second screens.
+- Shoot with `utk screenshot --output <path>`: it lands where you say.
+  `wait_for --on_met '{"capture":…}'` and `capture_game_view` take a
+  `save_path` that resolves **under `Assets/`** — `Temp/x.png` becomes
+  `Assets/Temp/x.png`, imported with a `.meta` (`..` is refused). Used one by
+  mistake? `rm -rf Assets/Temp Assets/Temp.meta`. For a frame-exact shot,
+  pause and step (below) instead of `on_met`.
 - `condition.op` accepts only `equals`, `notEquals`, `greaterThan`,
   `lessThan`, `contains`, `changed`. There is no `greaterOrEqual` — write
   "N or more" as `{"op":"greaterThan","value":N-1}`.
@@ -145,6 +149,23 @@ A full-screen panel can cover the widget in a screenshot, so it "looks hidden"
 in both runs. Trust the state line (`activeSelf`, alpha, parent active); use
 the screenshot only as a supplement.
 
+## Driving input
+
+- **Tap a uGUI element**: compute its screen point in one `exec`
+  (`RectTransformUtility.WorldToScreenPoint(cam, rt.TransformPoint(rt.rect.center))`,
+  `cam` = null for an Overlay canvas), then `utk simulate_pointer --x <x> --y <y>`.
+  Keys: `utk simulate_key`. Both go through the real input path, so
+  raycast blocking and `interactable` are honoured — `onClick.Invoke()` skips
+  both and proves less.
+- Fallback when the screen point is uncertain (custom Game view size): raycast
+  with `EventSystem.current.RaycastAll` and send
+  `ExecuteEvents.ExecuteHierarchy(hit, pointerData, ExecuteEvents.pointerClickHandler)`.
+- `exec --file` takes no arguments; a click/probe helper reused every step is
+  one file per action, or a tiny file you rewrite per call.
+- **Waiting N frames**: step them (`EditorApplication.Step()` loop above) or
+  `wait_for` on a member that counts. Never `until [ $(utk exec 'return
+  Time.frameCount;') -gt … ]` — unbounded, and hundreds of round trips.
+
 ## Pick the scene API by mode
 
 Two opposite failures, both seen repeatedly:
@@ -166,9 +187,11 @@ A compile queued while play mode runs waits for play mode to end — so
 utk editor stop; utk editor refresh && utk run_tests --mode editor
 ```
 
-An `exec` sent in the instant play mode starts can come back as a network
-error: entering play reloads the domain and drops the in-flight request. Retry
-once after it settles; don't treat it as a dead connection.
+Entering play, stopping and refreshing reload the domain. A call landing in
+that window ("Network error: An error occurred while sending the request",
+"Cannot connect …") is retried by `utk` for up to 30s, so `utk editor play;
+utk set_autotick --enable true` needs no sleep or retry loop around it. If it
+still fails, walk the hang triage above rather than looping.
 
 ## State that lies to you in Play mode
 
@@ -225,7 +248,16 @@ that rewrites runtime state:
   (poll on a bounded budget) or ask — don't stop play mode under them.
 - **Never delete save data you didn't create in this run.** Seeding a level via
   PlayerPrefs/save files for a screenshot is fine; snapshot the old values and
-  restore them after. A test that called `PlayerPrefs.DeleteKey` in `SetUp`
+  restore them after:
+
+  ```sh
+  D=$(UTK_NO_EXEC_LOGS=1 utk exec 'return Application.persistentDataPath;' | tr -d '"')
+  cp -R "$D" "$SCRATCH/save.bak"                          # before seeding / Play
+  # … play, capture, then:
+  utk editor stop && rm -rf "${D:?}"/* && cp -R "$SCRATCH/save.bak/." "$D/"
+  ```
+
+  Reset any debug static you set too (a forced hour, an "unlock all" flag). A test that called `PlayerPrefs.DeleteKey` in `SetUp`
   without restoring wiped a user's real progress on every `run_tests`
   (utk-test-runner → "Tests share the Editor").
 

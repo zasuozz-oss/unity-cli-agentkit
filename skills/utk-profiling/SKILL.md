@@ -30,6 +30,14 @@ utk run_script --file <this skill>/scripts/prof_spikes.cs --entry ProfSpikes.Run
   a marker tree with total/self ms (edit the constants at the top to change).
 - Measure twice (cold + warm); report both. A second run often hides the
   spike because data is already cached.
+- Setting `ProfilerDriver.enabled = true` through `exec` has crashed a Unity
+  6000.0 Editor once (`profiling::Dispatcher::AcquireFreeBuffer`; next calls
+  say `No Pipeline instance found`). If it does, wait for the Editor to come
+  back and take counters instead: start
+  `Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count", 300)`
+  (or `ProfilerCategory.Internal, "Main Thread"`) in one exec and park it in
+  `System.AppDomain.CurrentDomain.SetData("rec", r)`; read it back with
+  `GetData("rec")` in a second exec a few seconds later.
 
 ## Editor numbers that don't exist on device
 
@@ -71,6 +79,11 @@ device** before optimising further.
 - "Lag on tap" that the Profiler shows as 1-5 ms frames is **latency**, not a
   hitch (N frames of waiting for a load) — fix by preloading, not by
   optimising code.
+- "The whole game is slow" with cheap scripts: time every enabled
+  `Update`/`LateUpdate` first (call each via a delegate N times in one exec —
+  µs/frame and GC bytes/frame). When scripts are cheap, the next suspect is
+  **texture memory**: textures that fell back to RGBA32 on Android
+  (unity-asset-audit §4.1), then overdraw and draw calls.
 
 ## Report
 

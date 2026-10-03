@@ -68,6 +68,20 @@ foreach (var c in GetComponentsInChildren<Canvas>(true)) c.enabled = visible;
 and author such child canvases disabled by default. Seen: an overlay canvas
 stayed on screen during gameplay after its popup closed.
 
+Three more things a canvas toggle does not reset:
+
+- **Particles** keep emitting over the next screen. On close call
+  `ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear)` — `Clear`
+  alone leaves the emitter running.
+- **Button tint.** A popup closed at load has `CanvasGroup.interactable =
+  false`, so its buttons start in the *disabled* colour. Remove the tint
+  transition (`Selectable.transition = None`, a bounce preset) and they stay
+  pale after the popup opens. Keep the ColorTint and zero only the pressed
+  tint; probe with `b.targetGraphic.canvasRenderer.GetColor()`.
+- **Saved open.** A build script or a hand edit that saves a prefab or scene
+  with a popup open ships it open at start. End build scripts with the popup
+  hidden, and keep a test asserting every popup is closed in the saved asset.
+
 ## 5. Raise UI above a dim by giving it a canvas, not by reparenting
 
 To lift a HUD element above a modal dim (forced tutorial on a button), add a
