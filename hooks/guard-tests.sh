@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) hook of the unity-cli-agentkit plugin: refuses a
-# `utk run_tests` that would run the whole suite (no --filter, an assembly
+# `utk run_tests` (or `unity command run_tests`, which skips utk's own
+# check) that would run the whole suite (no --filter, an assembly
 # filter, or a `<Game>.Tests` namespace). 1000+ tests hold the shared Editor
 # for minutes and every other agent on it waits. `UTK_FULL_SUITE=1 utk
 # run_tests ...` lets the full run through when the user asked for it.
@@ -11,7 +12,7 @@ reason=""
 # One segment per command, so a filtered run does not cover an unfiltered one.
 for sep in '&&' '||' ';' '|'; do cmd=${cmd//"$sep"/$'\n'}; done
 while IFS= read -r seg; do
-  [[ $seg =~ (^|[/[:space:]])utk[[:space:]]+run_tests($|[[:space:]]) ]] || continue
+  [[ $seg =~ (^|[/[:space:]])(utk|unity[[:space:]]+command([[:space:]]+[^[:space:]]+)*)[[:space:]]+run_tests($|[[:space:]]) ]] || continue
   [[ $seg == *UTK_FULL_SUITE=1* ]] && continue
   filter=""
   [[ $seg =~ --filter[=[:space:]]+[\"\']?([^\"\'[:space:]]+) ]] && filter=${BASH_REMATCH[1]}
@@ -25,7 +26,7 @@ while IFS= read -r seg; do
   [ -n "$reason" ] && break
 done <<< "$cmd"
 [ -n "$reason" ] || exit 0
-msg="Blocked utk run_tests ($reason). It holds the shared Unity Editor for minutes and every other agent waits behind it. Run only your own tests: first \`unity-test.sh offline <repo> --tests <YourTestClass>\` (utk-test-runner skill, no Editor), then \`utk run_tests --mode editor --filter <YourTestClass>\`. Run the full suite only when the user asked for it: prefix the command with UTK_FULL_SUITE=1."
+msg="Blocked run_tests ($reason). It holds the shared Unity Editor for minutes and every other agent waits behind it. Run only your own tests: first \`unity-test.sh offline <repo> --tests <YourTestClass>\` (utk-test-runner skill, no Editor), then \`utk run_tests --mode editor --filter <YourTestClass>\`. Run the full suite only when the user asked for it: prefix the command with UTK_FULL_SUITE=1."
 msg="${msg//\\/\\\\}"
 msg="${msg//\"/\\\"}"
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$msg"
