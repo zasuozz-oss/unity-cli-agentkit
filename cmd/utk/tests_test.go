@@ -80,3 +80,41 @@ func TestRun_RunTestsRejectsAnotherRunsReport(t *testing.T) {
 		t.Errorf("exit = %d, want 1 with TEST_RESULT_FOREIGN; output: %s", code, out)
 	}
 }
+
+// A run that covers the whole suite holds a shared Editor for minutes, so it is
+// refused before anything reaches Unity unless UTK_FULL_SUITE=1.
+func TestWholeSuite(t *testing.T) {
+	cases := []struct {
+		args  []string
+		whole bool
+	}{
+		{nil, true},
+		{[]string{"--mode", "editor"}, true},
+		{[]string{"--filter", "EchoPals.Tests"}, true},
+		{[]string{"--filter=EchoPals.Tests.EditMode"}, true},
+		{[]string{"--filter_type", "Assembly", "--filter", "EchoPals.Tests.EditMode"}, true},
+		{[]string{"--mode", "editor", "--filter", "CatchGameTests"}, false},
+		{[]string{"--filter", "EchoPals.Tests.CatchGameTests"}, false},
+		{[]string{"--filter_type", "category", "--filter", "Fast"}, false},
+	}
+	for _, c := range cases {
+		if got := wholeSuite(c.args) != ""; got != c.whole {
+			t.Errorf("wholeSuite(%q) whole = %v, want %v", c.args, got, c.whole)
+		}
+	}
+	t.Setenv("UTK_FULL_SUITE", "1")
+	if why := wholeSuite(nil); why != "" {
+		t.Errorf("UTK_FULL_SUITE=1 still refused: %s", why)
+	}
+}
+
+func TestRun_RunTestsRefusesWholeSuite(t *testing.T) {
+	t.Setenv("UTK_UNITY_BIN", "/nonexistent/unity") // must not be reached
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"run_tests", "--mode", "editor"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("exit = %d, want 2; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "UTK_FULL_SUITE=1") {
+		t.Errorf("stderr does not name the escape hatch: %s", stderr.String())
+	}
+}

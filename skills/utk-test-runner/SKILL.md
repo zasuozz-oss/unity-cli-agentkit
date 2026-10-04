@@ -23,9 +23,9 @@ to the Editor through `utk` only for what offline cannot cover.
    `--filter_type assembly` on the game's test assembly, or no filter — that is
    the whole suite (1000+ tests, 1–3 min in the Editor) and every other agent
    on that Editor waits behind it. The full suite is for the end of a task, by
-   one agent, or when the user asks. In Claude Code the plugin's hook blocks
-   those runs; `UTK_FULL_SUITE=1 utk run_tests ...` gets past it, and only when
-   the user asked for the full suite.
+   one agent, or when the user asks. `utk run_tests` refuses those runs (exit
+   2); `UTK_FULL_SUITE=1 utk run_tests ...` gets past it, and only when the
+   user asked for the full suite.
 4. **Write tests that can run offline.** Measured on a 1055-test game: 95 ran
    offline, 958 needed the Editor because they touch `GameObject`, scenes,
    `JsonUtility` and other native Unity code. Put rules and numbers in plain C#

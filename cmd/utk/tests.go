@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -130,6 +132,30 @@ func waitTestSlot(projectPath string, stderr io.Writer) int {
 		}
 		time.Sleep(testPollStep)
 	}
+}
+
+// namespaceFilter matches a filter that names the test namespace or assembly
+// (`Game.Tests`, `Game.Tests.EditMode`) rather than a class: it hits every test.
+var namespaceFilter = regexp.MustCompile(`\.Tests(\.[A-Za-z]+Mode)?\.?$`)
+
+// wholeSuite says why a run_tests would run the whole suite, or "" when it is
+// scoped. 1000+ tests hold a shared Editor for minutes and every other agent
+// on it waits behind them; agents ran it anyway despite the skill's rule.
+// UTK_FULL_SUITE=1 lets it through when the user asked for the full suite.
+func wholeSuite(args []string) string {
+	if os.Getenv("UTK_FULL_SUITE") == "1" {
+		return ""
+	}
+	filter := findFlag(args, "--filter")
+	switch {
+	case filter == "":
+		return "no --filter: that is the whole suite"
+	case strings.EqualFold(findFlag(args, "--filter_type"), "assembly"):
+		return "--filter_type assembly runs the whole test assembly"
+	case namespaceFilter.MatchString(filter):
+		return "--filter " + filter + " is a namespace and matches every test"
+	}
+	return ""
 }
 
 // foreignTest returns a test in the report that the run's own testName filter
