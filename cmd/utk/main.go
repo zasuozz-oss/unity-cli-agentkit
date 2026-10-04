@@ -69,6 +69,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return code
 		}
 	}
+	if cmd == "run_tests" {
+		if why := wholeSuite(rest); why != "" {
+			fmt.Fprintf(stderr, "utk: refused run_tests (%s).\n", why)
+			fmt.Fprintln(stderr, "  It holds the shared Editor for minutes and every other agent waits behind it.")
+			fmt.Fprintln(stderr, "  Run only your own tests: unity-test.sh offline <repo> --tests <YourTestClass>,")
+			fmt.Fprintln(stderr, "  then utk run_tests --mode editor --filter <YourTestClass>.")
+			fmt.Fprintln(stderr, "  Full suite only when the user asked for it: UTK_FULL_SUITE=1 utk run_tests ...")
+			return 2
+		}
+	}
 
 	// `utk list <tool>` = detail mode: same unity call, different rendering.
 	// A tool name only means something on the filtered path, and only one at a

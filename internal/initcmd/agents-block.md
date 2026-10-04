@@ -47,8 +47,9 @@ Hard rules (full details live in the skills listed below):
 - **Run only your own tests:** `utk run_tests --mode editor --filter
   <YourTestClass>` (or a `[Category]` with `--filter_type category`). Never a
   namespace, the game assembly or no filter: that is the whole 1000+ test suite,
-  minutes long, and it blocks every other agent on the Editor. The full suite is
-  for the end of a task, by one agent, or when the user asks.
+  minutes long, and it blocks every other agent on the Editor; `utk run_tests`
+  refuses it. Only when the user asks for the full suite:
+  `UTK_FULL_SUITE=1 utk run_tests ...`.
 - **Batch, don't fan out:** the editor runs every command serialized on one
   main thread, and each `utk` call costs a model round-trip. One `utk exec`
   snippet that loops beats N per-object calls; use at most ONE Unity-touching
