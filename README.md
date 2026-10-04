@@ -212,6 +212,11 @@ The repo is its own plugin marketplace. In Claude Code:
   When the project has no `com.unity.pipeline` yet, the same context tells
   the agent to install it itself (`unity pipeline install`) before its first
   `utk` call — so a Claude-only project needs no `utk init` at all.
+- A `PreToolUse` hook refuses a `utk run_tests` that would run the whole
+  suite (no `--filter`, `--filter_type assembly`, or a `<Game>.Tests`
+  namespace filter), which holds a shared Editor for minutes. When the user
+  asked for the full suite, prefix the command with `UTK_FULL_SUITE=1`.
+  Codex and other agents do not get this hook.
 - Updates: the plugin has no pinned version, so every commit on the default
   branch is a new version. Third-party marketplaces do not auto-update by
   default: run `claude plugin update unity-cli-agentkit@unity-cli-agentkit`,
