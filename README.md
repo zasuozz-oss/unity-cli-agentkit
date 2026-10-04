@@ -342,10 +342,10 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 
 | Skill | When to use |
 |---|---|
-| `utk-cli-core` | Driving/inspecting the Editor with `utk` (start here); `scripts/unity-editor-open.sh <repo> [--headless]` launches an Editor with `-automated` |
+| `utk-cli-core` | Driving/inspecting the Editor with `utk` (start here); `scripts/unity-editor-open.sh <repo> [--headless]` launches an Editor with `-automated`; `scripts/unity-lock.sh` + `scripts/unity-job.sh` give one-job-at-a-time FIFO Editor access with a watchdog (optional `UNITY_JOB_BOARD` hook) |
 | `utk-console-triage` | Reading, triaging, and fixing console errors |
 | `utk-exec-query` | Inspecting/changing runtime state via `utk exec` |
-| `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests; bundled `scripts/unity-compile.sh` (dotnet build, ~3 s) and `scripts/unity-test.sh` (batchmode, Editor closed) for use without the Editor |
+| `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests; bundled `scripts/unity-test.sh`: `offline` (dotnet build, ~3 s, no Editor at all; `--tests` also runs EditMode tests that do not need Unity) is the first step, then `compile`/`editmode`/`playmode` (batchmode, Editor closed) only when offline cannot cover it |
 | `utk-playmode-driving` | Driving Play mode unattended: autotick, `wait_for`, frame stepping, Game view size |
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |

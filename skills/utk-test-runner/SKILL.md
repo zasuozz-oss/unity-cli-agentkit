@@ -30,9 +30,13 @@ utk run_tests --mode editor` stops at a broken build instead of testing it.
 one-off C# snippet, `utk exec '<csharp>'` compiles it on the spot and reports
 the error inline — no refresh needed.
 
-## Without the Editor
-- `<this skill>/scripts/unity-compile.sh <repo>`: `dotnet build` on the csproj files Unity generated (~3 s). Limit: a file missing from the csproj is reported as `NOT-IN-CSPROJ` (open the Editor once to regenerate).
-- `<this skill>/scripts/unity-test.sh compile|editmode|playmode <repo>`: batchmode run; the Editor must be closed for that project.
+## Without the Editor (default first step)
+**Rule: always run `<this skill>/scripts/unity-test.sh offline <repo>` first, every time.** It needs no Unity Editor (neither open nor batchmode): `dotnet build` on the csproj files Unity generated, ~3 s, prints CS errors and `COMPILE OK` / `COMPILE FAILED`. A file missing from the csproj is reported as `NOT-IN-CSPROJ` (open the Editor once to regenerate).
+
+`offline <repo> --tests` also runs the built EditMode test assemblies with NUnitLite on plain .NET, still without Unity. Tests that call native UnityEngine/UnityEditor code cannot run there and are counted as `SKIPPED-NEEDS-EDITOR`, not failures; only real failures exit 1 (a test that swallows the native error can still show as a false FAIL: re-check it in the Editor).
+
+Use the Editor or batchmode only when offline cannot cover it (PlayMode, scenes/assets, tests that need the Unity runtime):
+`<this skill>/scripts/unity-test.sh compile|editmode|playmode <repo>` (batchmode; the Editor must be closed for that project).
 
 Details and gotchas: `references/headless-testing.md`.
 
