@@ -33,10 +33,22 @@ Hard rules (full details live in the skills listed below):
   `UnityEngine`/`UnityEditor` are in scope — write everything else in full
   (`UnityEngine.UI.Image`, `TMPro.TextMeshProUGUI`). Its `Debug.Log` output is
   returned with the value, so no follow-up `utk console` is needed.
-- **Auto Refresh is off:** after editing C#, run `utk editor refresh` once for
-  the whole batch. It waits for the compile and answers with its errors (exit
-  non-zero when it failed) — no `recompile_status` poll, no follow-up
-  `utk console`. Fix until it exits clean before reporting the work done.
+- **Offline first, Editor only when needed:** after a batch of C# edits, check
+  it with the `utk-test-runner` skill's `scripts/unity-test.sh offline <repo>
+  --tests <YourTestClass>` — `dotnet build` plus your own logic tests on plain
+  .NET, ~10s, no Editor, nothing queued behind other agents. Go to the Editor
+  only for what offline reports `SKIPPED-NEEDS-EDITOR`, PlayMode, scenes/assets
+  or a visual check. Write new logic as plain C# (no UnityEngine) so its tests
+  run offline.
+- **Auto Refresh is off:** when you do need the Editor, run `utk editor
+  refresh` once for the whole batch. It waits for the compile and answers with
+  its errors (exit non-zero when it failed) — no `recompile_status` poll, no
+  follow-up `utk console`.
+- **Run only your own tests:** `utk run_tests --mode editor --filter
+  <YourTestClass>` (or a `[Category]` with `--filter_type category`). Never a
+  namespace, the game assembly or no filter: that is the whole 1000+ test suite,
+  minutes long, and it blocks every other agent on the Editor. The full suite is
+  for the end of a task, by one agent, or when the user asks.
 - **Batch, don't fan out:** the editor runs every command serialized on one
   main thread, and each `utk` call costs a model round-trip. One `utk exec`
   snippet that loops beats N per-object calls; use at most ONE Unity-touching
@@ -76,7 +88,7 @@ Common tasks:
 - C# too big for a method body (needs `using`, namespaces, several types) → `utk run_script --file <f.cs> [--entry Type.Method] [--args '[…]']` — compiles in memory, no domain reload. Put the file OUTSIDE `Assets/` (e.g. `AgentScripts/`) so writing it never triggers an import. `--dry_run true` compiles only and returns diagnostics with line/column. Unlike `exec`, its `Debug.Log` lands in the console, not the returned value
 - Look at the game view → `utk screenshot` (512px; re-captures composited when the scene has ScreenSpaceOverlay UI)
 - Verify edited C# compiles → `utk editor refresh` (blocks until the compile ends, prints its errors, exits non-zero on failure)
-- Run tests → `utk run_tests --mode editor|playmode --filter <name>` (exits non-zero on failures). `utk test` is the batchmode runner and aborts while the Editor is open — only use it with the Editor closed
+- Run tests → first `unity-test.sh offline <repo> --tests <YourTestClass>` (utk-test-runner skill, no Editor); then only what needs the Editor via `utk run_tests --mode editor|playmode --filter <YourTestClass>` (exits non-zero on failures). `utk test` is the batchmode runner and aborts while the Editor is open — only use it with the Editor closed
 - Control/inspect play mode → `utk editor refresh|play|pause|stop|status`
 - Build the Player → `utk build --confirm true [--outputPath P]` in the background — it waits for the verdict (≤30 min) and exits non-zero unless `Succeeded`; the report comes back without the per-file inventory (`--raw` for all of it)
 - Import an external file (image/texture/audio/model) into `Assets/` → `utk import <file> [dest]` — copies + imports in one call and returns the GUID. NEVER push file bytes as base64 through `utk exec`; get the file on disk first (download/decode outside Unity), then import by path. Tune importer settings afterwards with `utk set_import_settings`
@@ -127,16 +139,18 @@ is reported as not done.
 
 ### Unity Verification
 
-Verify every C# edit through the **utk CLI** — compile-check and Test Runner as
-in the Hard rules above. If `utk` is unavailable or no Editor is connected
-(`utk status` fails / reports `not responding`), SKIP verification entirely and
-say so. Exception: `utk status` reporting `SAFE MODE` means the Editor booted
-with compile errors — fix them in the `.cs` sources (read them from
-`<project>/Logs/Editor.log`) and have the user restart Unity; see the
-utk-cli-core skill's Safe Mode loop.
+Verify every C# edit offline first (`unity-test.sh offline <repo> --tests
+<YourTestClass>`), then through the **utk CLI** only for what offline cannot
+cover — as in the Hard rules above. If `utk` is unavailable or no Editor is
+connected (`utk status` fails / reports `not responding`), still run the offline
+check, skip the Editor part and say so. Exception: `utk status` reporting `SAFE
+MODE` means the Editor booted with compile errors — fix them in the `.cs`
+sources (the offline check lists them too) and have the user restart Unity;
+see the utk-cli-core skill's Safe Mode loop.
 
-**Never** fallback to Unity batchmode commands, `dotnet build`, or launching
-another Unity Editor instance.
+**Never** fall back to Unity batchmode or launch another Unity Editor instance
+while the project's Editor is open — the offline `dotnet` check is the
+Editor-free path.
 
 ### UI Button Wiring (NEVER wire onClick in script code)
 

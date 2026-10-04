@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
 
 // test_status hands its report back as a JSON string, not an object; reading it
 // as one makes every poll look unfinished and the run never returns.
@@ -35,5 +39,44 @@ func TestTestCrashed(t *testing.T) {
 	}
 	if got := testCrashed(logs[:1]); got != "" {
 		t.Fatalf("healthy run flagged as crashed: %q", got)
+	}
+}
+
+// The report test_status hands back is whichever run finished last on the
+// Editor; with agents sharing one, a one-test filter came back with 1041.
+func TestForeignTest(t *testing.T) {
+	report := `"{\"status\":\"completed\",\"results\":[{\"FullName\":\"G.MineTests.One\"},{\"FullName\":\"G.OtherTests.Two\"}]}"`
+	cases := []struct {
+		name, filter, filterType, want string
+	}{
+		{"other run's test", "MineTests", "", "G.OtherTests.Two"},
+		{"case-insensitive, all match", "g.", "testName", ""},
+		{"no filter: anything is ours", "", "", ""},
+		{"assembly: not in the report", "Mine", "assembly", ""},
+		{"category: not in the report", "Mine", "category", ""},
+	}
+	for _, c := range cases {
+		if got := foreignTest([]byte(report), c.filter, c.filterType); got != c.want {
+			t.Errorf("%s: foreignTest = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// End to end: an idle Editor lets the run start, and a report holding tests
+// the filter cannot match fails instead of passing as the caller's own.
+func TestRun_RunTestsRejectsAnotherRunsReport(t *testing.T) {
+	idle := `{"success":true,"data":{"result":"{\"status\":\"no_tests\"}"}}`
+	other := `{"success":true,"data":{"result":"{\"status\":\"completed\",\"summary\":{\"total\":2,\"passed\":2},` +
+		`\"results\":[{\"FullName\":\"G.MineTests.One\",\"Status\":\"Passed\"},{\"FullName\":\"G.OtherTests.Two\",\"Status\":\"Passed\"}]}"}}`
+	bin, _ := fakeUnity(t, idle, 0)
+	t.Setenv("UTK_UNITY_BIN", bin)
+	t.Setenv("UTK_NO_FLAG_CHECK", "1")
+	fakeUnityNext(t, other)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"run_tests", "--mode", "editor", "--filter", "MineTests"}, &stdout, &stderr)
+	out := stdout.String() + stderr.String()
+	if code != 1 || !strings.Contains(out, "TEST_RESULT_FOREIGN") {
+		t.Errorf("exit = %d, want 1 with TEST_RESULT_FOREIGN; output: %s", code, out)
 	}
 }

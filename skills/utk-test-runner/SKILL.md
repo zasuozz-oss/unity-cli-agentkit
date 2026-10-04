@@ -1,12 +1,34 @@
 ---
 name: utk-test-runner
-description: Use when you have edited C# in a Unity project and need to confirm it compiles, surface compile errors, or run the project's EditMode/PlayMode tests before considering the change done.
+description: Use when you have edited C# in a Unity project and need to confirm it compiles, surface compile errors, or run the project's EditMode/PlayMode tests before considering the change done — offline with dotnet first, the Editor only for what needs it, and only your own tests.
 ---
 
 # Unity Compile Check & Test Runner
 
 After editing C#, two questions decide if you're done: **does it compile?** and
-**do the tests pass?** Drive both through `utk` and read only what matters.
+**do the tests pass?** Answer both offline first (`dotnet`, no Editor), and go
+to the Editor through `utk` only for what offline cannot cover.
+
+## Order of checks (rules)
+1. **Offline, every time:** `<this skill>/scripts/unity-test.sh offline <repo>
+   --tests <YourTestClass>` — compile + your own logic tests, ~10s, no Editor,
+   no queue behind other agents. Its `passed`/`FAIL` on a logic test is the
+   answer; the Editor adds nothing to it.
+2. **Editor only when needed:** tests offline counts `SKIPPED-NEEDS-EDITOR`,
+   PlayMode, scenes/assets/prefabs, a visual check, or a `NOT-IN-CSPROJ` file
+   (a new .cs only the Editor's project sync adds). Then `utk editor refresh &&
+   utk run_tests --mode editor --filter <YourTestClass>`.
+3. **Only your own tests, in both places.** Filter by your test class (or a
+   `[Category]`). Never a namespace (`<Game>.Tests` matches every test),
+   `--filter_type assembly` on the game's test assembly, or no filter — that is
+   the whole suite (1000+ tests, 1–3 min in the Editor) and every other agent
+   on that Editor waits behind it. The full suite is for the end of a task, by
+   one agent, or when the user asks.
+4. **Write tests that can run offline.** Measured on a 1055-test game: 95 ran
+   offline, 958 needed the Editor because they touch `GameObject`, scenes,
+   `JsonUtility` and other native Unity code. Put rules and numbers in plain C#
+   classes (no `UnityEngine` types in the signature) and test those; keep the
+   MonoBehaviour a thin shell. Those tests then cost seconds, not an Editor slot.
 
 All snippets below are **bash**. On Windows, run them through bash (Bash tool /
 `bash -lc`), never PowerShell — PowerShell 5.1 strips embedded double quotes
@@ -33,7 +55,7 @@ the error inline — no refresh needed.
 ## Without the Editor (default first step)
 **Rule: always run `<this skill>/scripts/unity-test.sh offline <repo>` first, every time.** It needs no Unity Editor (neither open nor batchmode): `dotnet build` on the csproj files Unity generated, ~3 s, prints CS errors and `COMPILE OK` / `COMPILE FAILED`. A file missing from the csproj is reported as `NOT-IN-CSPROJ` (open the Editor once to regenerate).
 
-`offline <repo> --tests` also runs the built EditMode test assemblies with NUnitLite on plain .NET, still without Unity. Tests that call native UnityEngine/UnityEditor code cannot run there and are counted as `SKIPPED-NEEDS-EDITOR`, not failures; only real failures exit 1 (a test that swallows the native error can still show as a false FAIL: re-check it in the Editor).
+`offline <repo> --tests [<filter>]` also runs the built EditMode test assemblies with NUnitLite on plain .NET, still without Unity. `<filter>` is a regex on the test's full name, like `run_tests --filter` (a class name is enough): `offline <repo> --tests CatchGameTests`. Tests that call native UnityEngine/UnityEditor code cannot run there and are counted as `SKIPPED-NEEDS-EDITOR`, not failures; only real failures exit 1 (a test that swallows the native error can still show as a false FAIL, e.g. a `JsonUtility` fixture decode: re-check it in the Editor). `no test matched filter` means the name is wrong, not that the tests passed.
 
 Use the Editor or batchmode only when offline cannot cover it (PlayMode, scenes/assets, tests that need the Unity runtime):
 `<this skill>/scripts/unity-test.sh compile|editmode|playmode <repo>` (batchmode; the Editor must be closed for that project).
@@ -43,7 +65,7 @@ Details and gotchas: `references/headless-testing.md`.
 ## Run tests
 
 ```bash
-utk run_tests --mode editor --filter <name>  # default choice: works with the Editor open
+utk run_tests --mode editor --filter <YourTestClass>  # after offline, for what needs the Editor
 utk run_tests --mode playmode               # PlayMode (triggers a domain reload)
 utk list_tests                              # discover test names/assemblies
 utk test_status                             # poll an async run
@@ -110,6 +132,26 @@ Chain refresh and tests with `&&`, never `;`. After a failed compile the
 Editor keeps the previous assembly, so `refresh; run_tests` runs the old code
 and can report green for a change that does not compile.
 
+## One Editor, one test run
+
+The pipeline keeps **one** test run and one result file per Editor. Before
+`utk` waited, every `run_tests` cancelled the run in flight ("Invalidated
+previous test run" in Editor.log), and the cancelled agent then read the other
+agent's report as its own — a one-test filter came back with 1041 tests.
+
+- `utk run_tests` now checks `test_status` first and, while another run is in
+  progress, **waits** for it (stderr: "another test run … waiting") instead of
+  cancelling it — up to 10 minutes, then it stops without starting yours. A
+  run that crashed and never reported keeps saying `running`: `utk
+  cancel_tests`, then retry.
+- A report holding a test your `--filter` (testName) cannot match fails with
+  **`TEST_RESULT_FOREIGN`**: another agent's run replaced yours. Rerun; do not
+  read anything from that report. Assembly/category filters cannot be checked.
+- Do not pass `--async_tests false`: a synchronous run is invisible to that
+  wait, hits the CLI's 30s cap and blocks the Editor's main thread.
+- Several agents need Editor tests at once → queue through `unity-job.sh`
+  (utk-cli-core) or give each agent its own Editor (unity-parallel-branch).
+
 ## Tests share the Editor
 
 `run_tests` runs inside the Editor the user may be playing in, against the
@@ -174,9 +216,10 @@ the body — that throws "Identifier expected" — and should use fully-qualifie
 names.)
 
 ## Loop
-Edit batch → `utk editor refresh` → fix the errors it prints
-→ (force reload + wait, see **Stale results trap**) → `utk run_tests --filter <name>`
-→ repeat until the summary shows 0 failed. If a failure won't budge and matches the
+Edit batch → `unity-test.sh offline <repo> --tests <YourTestClass>` → fix what it
+prints → only if something needs the Editor: `utk editor refresh &&
+utk run_tests --mode editor --filter <YourTestClass>` (force reload + wait first,
+see **Stale results trap**) → repeat until 0 failed. If a failure won't budge and matches the
 pre-edit result exactly, suspect a stale assembly before suspecting your code:
 reload-and-wait, or confirm the logic directly with `utk exec`. Don't blind
 fix-and-retry the same error more than twice — if it still fails, stop and report.

@@ -180,6 +180,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if execMS > 0 {
 		unityArgs = append(unityArgs, execTimeoutArgs(execMS)...)
 	}
+	if cmd == "run_tests" {
+		if code := waitTestSlot(findFlag(unityArgs, "--project-path"), stderr); code != 0 {
+			return code
+		}
+	}
 	// Stamped before the call so every entry the snippet logs falls after it.
 	execStart := time.Now().UTC()
 	raw, code := official.CaptureRetry(unityArgs, stderr)
@@ -221,6 +226,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// the hand-off and getting a block instead would be the surprise.
 	if cmd == "run_tests" && code == 0 && !hasFlag(rest, "--async_tests") {
 		raw, code = pollTests(raw, execStart, findFlag(unityArgs, "--project-path"), stderr)
+		if env, err := official.Parse(raw); err == nil && env.Success {
+			if name := foreignTest(env.Payload(true), findFlag(rest, "--filter"), findFlag(rest, "--filter_type")); name != "" {
+				raw, code = foreignReport(name, stderr)
+			}
+		}
 	}
 	// `recompile` hands off the same way and for the same reason (the domain
 	// reload kills the reply), so `utk editor refresh` answered "started" and

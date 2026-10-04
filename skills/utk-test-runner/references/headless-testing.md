@@ -15,7 +15,7 @@ Framework CLI.
 ## Offline first (no Unity at all)
 Order of checks: (a) `unity-test.sh offline <repo>` first, always; (b) batchmode/Editor only when
 offline cannot cover it. `offline` = `dotnet build` on Unity's generated solution (~3 s);
-`offline <repo> --tests` additionally runs the EditMode test assemblies (built to `Temp/bin/Debug`)
+`offline <repo> --tests [<filter>]` (regex on the test full name) additionally runs the EditMode test assemblies (built to `Temp/bin/Debug`)
 with NUnitLite 3.14 on .NET, resolving Unity DLLs from the Editor install's `Managed` folder and
 `Library/ScriptAssemblies`. Measured on a 29-project game: 1085 tests ran in ~8 s total, 112 passed,
 971 reported SKIPPED-NEEDS-EDITOR (native UnityEngine/UnityEditor ECall `SecurityException`, "No log
