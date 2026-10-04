@@ -5,7 +5,7 @@
 # gotchas in references/headless-testing.md.
 #
 # Usage:
-#   <this skill>/scripts/unity-test.sh offline  <game-repo-path> [--tests]   (no Editor, ~3-10 s)
+#   <this skill>/scripts/unity-test.sh offline  <game-repo-path> [--tests [<filter>]]   (no Editor, ~3-10 s)
 #   <this skill>/scripts/unity-test.sh compile  <game-repo-path>
 #   <this skill>/scripts/unity-test.sh editmode <game-repo-path> [results.xml]
 #   <this skill>/scripts/unity-test.sh playmode <game-repo-path> [results.xml]
@@ -16,6 +16,8 @@
 #   --tests then runs the built EditMode test assemblies with NUnitLite on plain .NET (no Unity):
 #   tests that touch native UnityEngine/UnityEditor code fail with an ECall SecurityException and
 #   are reported as SKIPPED-NEEDS-EDITOR, not FAIL; only real assertion failures exit 1.
+#   <filter> keeps only tests whose full name matches it (NUnit `test =~`, a regex; a class name
+#   or fragment is enough), same idea as `utk run_tests --filter`.
 #   Tests run with the repo as cwd (some read project files): do not use it on a repo whose tests write
 #   tracked files. First use builds the runner into $UTK_OFFLINE_RUNNER (default
 #   ~/.unity-cli-agentkit/offline-runner; needs NUnitLite 3.14 from NuGet).
@@ -65,8 +67,8 @@ sys.exit(1 if bad else 0)
 PY
 }
 
-offline_tests() { # cwd = repo, after a good build
-    local R=$PWD runner=${UTK_OFFLINE_RUNNER:-$HOME/.unity-cli-agentkit/offline-runner}
+offline_tests() { # [<filter>] — cwd = repo, after a good build
+    local R=$PWD filter=${1:-} runner=${UTK_OFFLINE_RUNNER:-$HOME/.unity-cli-agentkit/offline-runner}
     if [ ! -f "$runner/bin/runner.dll" ]; then
         mkdir -p "$runner/src"; printf '%s\n' "$RUNNER_PROJ" > "$runner/src/runner.csproj"; printf '%s\n' "$RUNNER_CS" > "$runner/src/Program.cs"
         (cd "$runner/src" && dotnet build -nologo -v q -o "$runner/bin" >"$runner/build.log" 2>&1) \
@@ -75,20 +77,24 @@ offline_tests() { # cwd = repo, after a good build
     local contents; contents=$(grep -ho '/[^<"]*Unity.app/Contents' *.csproj 2>/dev/null | head -1)
     local probe="$R/Temp/bin/Debug:$R/Library/ScriptAssemblies"
     [ -n "$contents" ] && probe="$probe:$contents/Managed:$contents/Managed/UnityEngine:$contents/NetStandard/compat/2.1.0/shims/netstandard"
-    local rc=0 proj name dll xml; xml=$(mktemp)
+    local rc=0 proj name dll xml any=; xml=$(mktemp)
+    local where=(); [ -n "$filter" ] && where=(--where "test =~ '$filter'")
     for proj in $(grep -l 'nunit.framework' *.csproj 2>/dev/null); do
         name=${proj%.csproj}; dll=Temp/bin/Debug/$name.dll
         [ -f "$dll" ] || { echo "$name: no built dll ($dll)"; continue; }
         UTK_PROBE_DIRS=$probe perl -e 'alarm shift; exec @ARGV' "${UNITY_TIMEOUT:-1200}" \
-            dotnet "$runner/bin/runner.dll" "$dll" --result="$xml" --work="$(dirname "$xml")" >/dev/null 2>&1
+            dotnet "$runner/bin/runner.dll" "$dll" ${where[@]+"${where[@]}"} --result="$xml" --work="$(dirname "$xml")" >/dev/null 2>&1
         [ -s "$xml" ] || { echo "$name: runner wrote no results"; rc=1; continue; }
-        summarize_nunit "$xml" "$name" || rc=1
+        local out; out=$(summarize_nunit "$xml" "$name") || rc=1
+        [ -n "$out" ] && { echo "$out"; any=1; }
         : > "$xml"
     done
-    rm -f "$xml"; return $rc
+    rm -f "$xml"
+    [ -n "$any$filter" ] && [ -z "$any" ] && echo "no test matched filter: $filter"
+    return $rc
 }
 
-offline_mode() { # <repo> [--tests]
+offline_mode() { # <repo> [--tests [<filter>]]
     command -v dotnet >/dev/null || { echo "unity-test offline: dotnet not found (brew install dotnet)"; return 2; }
     cd "$1" || return 2
     local SLN; SLN=$(ls *.slnx *.sln 2>/dev/null | head -1)
@@ -112,7 +118,7 @@ for f in sys.stdin.read().split("\n"):
     if f and f not in listed and "/Editor Default Resources/" not in f: print("NOT-IN-CSPROJ", f)'
     [ $rc = 0 ] || { echo "COMPILE FAILED (exit $rc)"; return 1; }
     echo "COMPILE OK"
-    [ "${2:-}" = --tests ] && { offline_tests; return $?; }
+    [ "${2:-}" = --tests ] && { offline_tests "${3:-}"; return $?; }
     return 0
 }
 
@@ -143,7 +149,11 @@ using NUnit.Framework;
 CS
     O=$(UTK_OFFLINE_RUNNER=${UTK_OFFLINE_RUNNER:-$T/runner} "$0" offline "$T" --tests); local rc=$?
     echo "$O" | grep -q 'TESTS G: ran=3 passed=1 failed=1 SKIPPED-NEEDS-EDITOR=1' && [ $rc = 1 ] || { echo "selftest FAIL: --tests ($rc)"; echo "$O"; return 1; }
-    echo "offline --tests selftest ok"
+    O=$(UTK_OFFLINE_RUNNER=${UTK_OFFLINE_RUNNER:-$T/runner} "$0" offline "$T" --tests 'T\.Pass'); rc=$?
+    echo "$O" | grep -q 'TESTS G: ran=1 passed=1 failed=0' && [ $rc = 0 ] || { echo "selftest FAIL: --tests filter ($rc)"; echo "$O"; return 1; }
+    O=$(UTK_OFFLINE_RUNNER=${UTK_OFFLINE_RUNNER:-$T/runner} "$0" offline "$T" --tests Nope)
+    echo "$O" | grep -q 'no test matched filter: Nope' || { echo "selftest FAIL: --tests empty filter"; echo "$O"; return 1; }
+    echo "offline --tests selftest ok (with filter)"
 }
 
 if [ "$MODE" = "--selftest" ]; then
@@ -157,7 +167,7 @@ if [ "$MODE" = "--selftest" ]; then
     offline_selftest; exit $?
 fi
 
-[ "$MODE" = offline ] && { [ -n "${2:-}" ] || { echo "usage: unity-test.sh offline <game-repo> [--tests]" >&2; exit 64; }; offline_mode "$2" "${3:-}"; exit $?; }
+[ "$MODE" = offline ] && { [ -n "${2:-}" ] || { echo "usage: unity-test.sh offline <game-repo> [--tests [<filter>]]" >&2; exit 64; }; offline_mode "$2" "${3:-}" "${4:-}"; exit $?; }
 PROJECT="${2:-}"
 if [ -z "$MODE" ] || [ -z "$PROJECT" ]; then
     echo "usage: unity-test.sh offline|compile|editmode|playmode <game-repo-path> [results.xml]" >&2

@@ -76,24 +76,94 @@ func pollTests(initial []byte, start time.Time, projectPath string, stderr io.Wr
 	return initial, 1
 }
 
-// testRunFinished reads test_status's own status field. The payload arrives as
-// a JSON *string* rather than an object, so it needs unwrapping first — the
-// same extra layer internal/filter's parseTests strips.
+// testRunFinished reads test_status's own status field.
 func testRunFinished(payload []byte) bool {
+	d, ok := testReport(payload)
+	return ok && d.Status != "running"
+}
+
+// testReport decodes a test_status payload. It arrives as a JSON *string*
+// rather than an object, so it needs unwrapping first — the same extra layer
+// internal/filter's parseTests strips.
+func testReport(payload []byte) (d struct {
+	Status  string `json:"status"`
+	Results []struct {
+		FullName string `json:"FullName"`
+	} `json:"results"`
+}, ok bool) {
 	if len(payload) > 0 && payload[0] == '"' {
 		var s string
 		if json.Unmarshal(payload, &s) != nil {
-			return false
+			return d, false
 		}
 		payload = []byte(s)
 	}
-	var d struct {
-		Status string `json:"status"`
+	return d, json.Unmarshal(payload, &d) == nil
+}
+
+// waitTestSlot holds a run_tests back while another async run owns the Editor.
+// The pipeline keeps one run per Editor and every run_tests cancels the one in
+// flight, so agents sharing an Editor kept killing each other's runs and then
+// rerunning them. Anything but a clear "running" — no run, a finished report,
+// an unreadable answer — lets the caller go ahead.
+// ponytail: check-then-start races when two agents check in the same instant;
+// unity-job.sh's lock closes that window if it matters.
+func waitTestSlot(projectPath string, stderr io.Writer) int {
+	args := []string{"command", "test_status", "--json", "--no-banner"}
+	if projectPath != "" {
+		args = append(args, "--project-path", projectPath)
 	}
-	if json.Unmarshal(payload, &d) != nil {
-		return false
+	deadline := time.Now().Add(testPollBudget)
+	for waited := false; ; waited = true {
+		raw, _ := official.CaptureRetry(args, io.Discard)
+		env, err := official.Parse(raw)
+		if err != nil || !env.Success || testRunFinished(env.Payload(true)) {
+			return 0
+		}
+		if time.Now().After(deadline) {
+			fmt.Fprintf(stderr, "utk: another test run still holds this Editor after %s; not starting yours over it.\n", testPollBudget)
+			fmt.Fprintln(stderr, "  If nothing is really running (a crashed run never reports): `utk cancel_tests`, then retry.")
+			return 1
+		}
+		if !waited {
+			fmt.Fprintln(stderr, "utk: another test run (another agent?) is in progress on this Editor; waiting for it instead of cancelling it")
+		}
+		time.Sleep(testPollStep)
 	}
-	return d.Status != "running"
+}
+
+// foreignTest returns a test in the report that the run's own testName filter
+// could not have selected, or "". The report test_status hands back is
+// whatever run finished last on the Editor, so an agent whose run another
+// agent replaced got that agent's results — 1041 tests for a one-test filter —
+// and took them for its own. Only the testName filter can be checked: the
+// report carries neither assembly nor category.
+func foreignTest(payload []byte, filter, filterType string) string {
+	if filter == "" || filterType != "" && !strings.EqualFold(filterType, "testName") {
+		return ""
+	}
+	d, ok := testReport(payload)
+	if !ok {
+		return ""
+	}
+	f := strings.ToLower(filter)
+	for _, r := range d.Results {
+		if !strings.Contains(strings.ToLower(r.FullName), f) {
+			return r.FullName
+		}
+	}
+	return ""
+}
+
+// foreignReport is the failed envelope for a report that belongs to another run.
+func foreignReport(name string, stderr io.Writer) ([]byte, int) {
+	fmt.Fprintln(stderr, "utk: these results are not your run's — another run_tests on this Editor replaced it.")
+	fmt.Fprintln(stderr, "  Rerun yours; for a shared Editor queue through unity-job.sh, or give each agent its own Editor.")
+	env, _ := json.Marshal(map[string]any{
+		"success": false,
+		"errors":  []map[string]string{{"code": "TEST_RESULT_FOREIGN", "message": "report contains " + name + ", which your --filter does not match"}},
+	})
+	return env, 1
 }
 
 // testCrashed returns the framework's crash entry among logs, or "".
