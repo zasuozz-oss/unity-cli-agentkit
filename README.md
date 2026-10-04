@@ -342,10 +342,10 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 
 | Skill | When to use |
 |---|---|
-| `utk-cli-core` | Driving/inspecting the Editor with `utk` (start here) |
+| `utk-cli-core` | Driving/inspecting the Editor with `utk` (start here); `scripts/unity-editor-open.sh <repo> [--headless]` launches an Editor with `-automated` |
 | `utk-console-triage` | Reading, triaging, and fixing console errors |
 | `utk-exec-query` | Inspecting/changing runtime state via `utk exec` |
-| `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests |
+| `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests; bundled `scripts/unity-compile.sh` (dotnet build, ~3 s) and `scripts/unity-test.sh` (batchmode, Editor closed) for use without the Editor |
 | `utk-playmode-driving` | Driving Play mode unattended: autotick, `wait_for`, frame stepping, Game view size |
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
@@ -365,6 +365,8 @@ skills above/below before adding its own rules):
 | `unity-layer-audit` | Draw-order/input audit: nothing draws or taps through a popup — one sorting ladder, `scripts/layer_audit.cs` flags ABOVE POPUP / COVERS OVERLAY (tooltips, toasts) / TIE / INPUT LEAK |
 | `unity-analytics-tracking-plan-sync` | Syncing a Google Sheet tracking plan with analytics code: per-event audit (fired, params, types, double-fire), guarded Apps Script writes, Notes conventions; `scripts/dump_sheet.gs` + `scripts/guarded_write.gs` |
 | `unity-device-testing` | Testing on a real Android/iOS device: build → install (adb / `xcrun devicectl`) → launch with log capture → drive → screenshots/crashes → report; Firebase debug mode + event log for analytics |
+| `unity-builtin-setup` | Fresh Unity 6 project on the Built-in Render Pipeline: no SRP active, leftover URP assets cleared, PlayerSettings script |
+| `unity-scene-script` | One idempotent `Tools/build_<scene>.cs` run via `utk exec --file` as the source of truth for a scene/prefab set |
 | `release-production` | Cutting a production build: dev ↔ prod config per game from `app-config-checklist.md` (ad keys, Firebase files, package/bundle id, Android vs iOS), version bump, tidy; `scripts/release_config.py` (init / check / apply / next-version / set-version / tidy / setting) |
 | `unity-plugin-sync` | Bringing a plugin/SDK from a sibling project or another machine: GUID/namespace diff on overwrite, native libs git doesn't carry (`DllNotFoundException`), `.unitypackage` hand-off of ignored files |
 | `unity-spine-cli` | Spine Editor from the shell: export `.spine`/`.skel` to JSON, diff the Spine project against what Unity ships, script an animation as JSON, render previews, round-trip check before replacing `.skel.bytes` |
@@ -381,7 +383,7 @@ agent picks them up by topic:
 | Group | Skills |
 |---|---|
 | `unity-*` | `csharp-standards`, `ugui-layout`, `ui-performance`, `async-patterns`, `dotween-safety`, `event-safety`, `addressables`, `asset-audit`, `editor-tools`, `editmode-tests`, `android-build`, `social-auth`, `telemetry-analytics`, `spine-ui`, `panel-navigation`, `scrollview-recycling`, `startup-loading`, `bug-regression-workflow`, `texture-pipeline` |
-| `unity-urp-*` / `unity-3d-*` | `urp-setup`, `urp-renderer-feature`, `shader-authoring`, `3d-lighting`, `3d-rendering-performance`, `3d-model-pipeline` |
+| `unity-urp-*` / `unity-3d-*` | `urp-setup` (+ `references/bootstrap.md` to bootstrap URP on a fresh project), `urp-renderer-feature`, `shader-authoring`, `3d-lighting`, `3d-rendering-performance`, `3d-model-pipeline` |
 | `unity-qa-*` | `parser`, `generator`, `scorer`, `verifier` |
 
 Installing them through the plugin / `utk init` replaces `ag-unity init` —

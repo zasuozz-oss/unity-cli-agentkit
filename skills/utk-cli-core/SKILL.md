@@ -109,6 +109,8 @@ with `Unity -projectPath <project> -automated`. On a headless box, add
 `-batchmode` and **omit `-quit`** — the Editor stays resident and keeps
 serving the pipeline API.
 
+To launch (or reuse) an Editor with the flag: `<this skill>/scripts/unity-editor-open.sh <repo> [--headless]`.
+
 ## Safe Mode: "can't connect" is not "no Editor"
 When the project has C# compile errors, the Editor boots into **Safe Mode**,
 where packages — including `com.unity.pipeline` — don't load. Every `utk`

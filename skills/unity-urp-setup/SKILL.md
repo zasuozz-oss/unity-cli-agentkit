@@ -1,9 +1,13 @@
 ---
 name: unity-urp-setup
-description: "Use when configuring the Universal Render Pipeline: choosing a rendering path (Forward / Forward+ / Deferred), tuning the URP Asset and Universal Renderer for mobile, quality tiers, MSAA vs post-processing, render scale, depth/opaque textures, or debugging 'my URP setting has no effect'."
+description: "Use when configuring the Universal Render Pipeline: choosing a rendering path (Forward / Forward+ / Deferred), tuning the URP Asset and Universal Renderer for mobile, quality tiers, MSAA vs post-processing, render scale, depth/opaque textures, debugging 'my URP setting has no effect', or bootstrapping URP onto a fresh project (manifest, URP asset + renderer, Quality wiring)."
 ---
 
 # URP Asset & Renderer Setup
+
+**Fresh project / pink materials / URP not installed:** follow
+`references/bootstrap.md` verbatim (manifest, URP asset + renderer, Quality
+wiring, PlayerSettings). Built-in instead: `unity-builtin-setup`.
 
 ## Overview
 URP splits its config across **two assets** — a `UniversalRenderPipelineAsset`
