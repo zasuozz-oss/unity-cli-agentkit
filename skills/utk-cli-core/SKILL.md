@@ -268,3 +268,11 @@ or, for Codex, in `.agents/skills/` copies — both are replaced on the next
 plugin update or `utk init`, so a rule the user asks you to "add to the skill"
 and that you write only there is lost. Put it in the kit's
 own `skills/` (or the project's `CLAUDE.md`), and say where it went.
+
+## Editor lock & jobs
+One Editor serves one job at a time. Take it through the bundled scripts instead of calling `utk` raw from several agents:
+`<this skill>/scripts/unity-job.sh <owner> <log> [--task ID] [--timeout S] -- <cmd...>` takes the FIFO lock (`scripts/unity-lock.sh`), turns autotick on, runs `<cmd>` under a wall-clock limit (default 900 s), turns autotick off, releases the lock and writes `<log>` ending in `RESULT: PASS|FAIL|TIMEOUT`. Run it in the background (Bash `run_in_background`) so you keep working while it queues. Before queueing, check offline first: `skills/utk-test-runner/scripts/unity-test.sh offline <repo>`; submit the job only on `COMPILE OK`.
+- `UNITY_LOCK_NAME`: one lock per Editor (set it per worktree Editor); `UNITY_LOCK_DIR` default `~/.unity-cli-agentkit/locks`.
+- `UNITY_JOB_NO_TICK=1`: leave autotick alone (a batchmode job must not toggle another Editor's autotick).
+- `UNITY_JOB_BOARD="<cmd>"`: optional task-board command prefix; with `--task ID` it receives `status <ID> wait-editor|doing` and `lockwait <ID> <secs>`. Unset = no board calls.
+- A stale lock (untouched 15 min) is removed automatically; `unity-lock.sh status|queue|want <owner>` inspect or jump the queue.

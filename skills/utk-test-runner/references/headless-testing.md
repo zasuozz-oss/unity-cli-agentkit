@@ -1,7 +1,7 @@
 # Headless Testing & Compile Checks (Unity 6)
 
 **Verified against official docs: 2026-08-21.** Wrapper: `scripts/unity-test.sh`
-(compile / editmode / playmode). This page corrects an older assumption
+(offline / compile / editmode / playmode). This page corrects an older assumption
 that Unity tests "cannot be run headlessly" — they can, via the Unity Test
 Framework CLI.
 
@@ -11,6 +11,19 @@ Framework CLI.
   <https://docs.unity3d.com/Packages/com.unity.test-framework@2.0/manual/reference-command-line.html>
 - Editor command-line arguments (Unity 6):
   <https://docs.unity3d.com/6000.2/Documentation/Manual/EditorCommandLineArguments.html>
+
+## Offline first (no Unity at all)
+Order of checks: (a) `unity-test.sh offline <repo>` first, always; (b) batchmode/Editor only when
+offline cannot cover it. `offline` = `dotnet build` on Unity's generated solution (~3 s);
+`offline <repo> --tests` additionally runs the EditMode test assemblies (built to `Temp/bin/Debug`)
+with NUnitLite 3.14 on .NET, resolving Unity DLLs from the Editor install's `Managed` folder and
+`Library/ScriptAssemblies`. Measured on a 29-project game: 1085 tests ran in ~8 s total, 112 passed,
+971 reported SKIPPED-NEEDS-EDITOR (native UnityEngine/UnityEditor ECall `SecurityException`, "No log
+scope" from `LogAssert`, NUnit API mismatch with Unity's custom NUnit), 2 FAIL (a JsonUtility-based
+fixture decode and an asmdef type lookup, both Unity-runtime dependent: confirm in the Editor).
+Limits: logic-only tests run; anything touching `AssetDatabase`, `GameObject`, scenes, Texture, JsonUtility
+and similar needs the Editor. Tests run with the repo as cwd, so a test that writes tracked files will
+write them. The runner is built once into `~/.unity-cli-agentkit/offline-runner` (needs NuGet access once).
 
 ## Running tests headlessly
 
