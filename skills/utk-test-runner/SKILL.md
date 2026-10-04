@@ -30,6 +30,12 @@ utk run_tests --mode editor` stops at a broken build instead of testing it.
 one-off C# snippet, `utk exec '<csharp>'` compiles it on the spot and reports
 the error inline — no refresh needed.
 
+## Without the Editor
+- `<this skill>/scripts/unity-compile.sh <repo>`: `dotnet build` on the csproj files Unity generated (~3 s). Limit: a file missing from the csproj is reported as `NOT-IN-CSPROJ` (open the Editor once to regenerate).
+- `<this skill>/scripts/unity-test.sh compile|editmode|playmode <repo>`: batchmode run; the Editor must be closed for that project.
+
+Details and gotchas: `references/headless-testing.md`.
+
 ## Run tests
 
 ```bash
