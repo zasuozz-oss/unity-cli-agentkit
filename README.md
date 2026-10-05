@@ -242,6 +242,10 @@ The repo is its own plugin marketplace. In Claude Code:
 | Import an external file (image, audio, model…) into `Assets/` | `utk import <file> [dest]` — copies + imports in one call; never base64 through `exec` |
 | Reserialize assets the editor has already imported | `utk reserialize <paths…>` (after `utk editor refresh`, never before — see below) |
 | List editor instances / check the connection | `utk status` |
+| Wait until the Editor can take a command | `utk editor wait [--timeout S]` — exits 124 with the reason when it cannot |
+| Hard deadline on any call | `utk --max-time <s> <verb> …` — exit 124, the `unity` child killed |
+| Restart an Editor that has slowed down over the day | `utk editor restart` — `utk editor status` says when; refuses while playing or with unsaved scenes (`--force` for a hung one) |
+| Destroy the fonts Unity leaks at every domain reload | `utk editor gc` — the queue runs it each cycle |
 | Run a whole C# file (`using`, namespaces, several types) | `utk run_script --file <f.cs> [--entry Type.Method] [--args '[…]']` — compiles in memory, no domain reload; `--dry_run true` compiles only |
 | Any other official tool | `utk <tool> [--k v]` (any of the ~150) |
 | Get raw, unfiltered output | add `--raw` to any command |

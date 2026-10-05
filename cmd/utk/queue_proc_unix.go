@@ -16,6 +16,12 @@ import (
 // driving the Editor after the coordinator moved on (unity-job.sh learned this
 // the hard way with perl setpgrp). Exit 124 marks a timeout, like coreutils.
 func runWithTimeout(cwd string, timeout time.Duration, env []string, name string, args ...string) (string, int) {
+	return runWithAbort(cwd, timeout, env, nil, name, args...)
+}
+
+// runWithAbort is runWithTimeout that also stops the command (exit 130) once
+// gone() reports that nobody waits for its result. gone is polled every second.
+func runWithAbort(cwd string, timeout time.Duration, env []string, gone func() bool, name string, args ...string) (string, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.Command(name, args...)
@@ -31,16 +37,7 @@ func runWithTimeout(cwd string, timeout time.Duration, env []string, name string
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		if ee, ok := err.(*exec.ExitError); ok {
-			return buf.String(), ee.ExitCode()
-		}
-		if err != nil {
-			return buf.String() + err.Error(), 1
-		}
-		return buf.String(), 0
-	case <-ctx.Done():
+	stop := func() {
 		syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		select {
 		case <-done:
@@ -48,7 +45,28 @@ func runWithTimeout(cwd string, timeout time.Duration, env []string, name string
 			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 			<-done
 		}
-		return buf.String() + "\nTIMEOUT after " + timeout.String() + "\n", 124
+	}
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case err := <-done:
+			if ee, ok := err.(*exec.ExitError); ok {
+				return buf.String(), ee.ExitCode()
+			}
+			if err != nil {
+				return buf.String() + err.Error(), 1
+			}
+			return buf.String(), 0
+		case <-ctx.Done():
+			stop()
+			return buf.String() + "\nTIMEOUT after " + timeout.String() + "\n", 124
+		case <-tick.C:
+			if gone != nil && gone() {
+				stop()
+				return buf.String() + "\nCANCELLED: nobody is waiting for this job\n", 130
+			}
+		}
 	}
 }
 

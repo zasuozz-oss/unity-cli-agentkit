@@ -133,6 +133,9 @@ func fakeExec(t *testing.T, answers map[string]struct {
 		if ans, ok := answers[best]; ok {
 			return ans.out, ans.code
 		}
+		if strings.HasPrefix(line, "utk editor gc") {
+			return "destroyed 0 leaked OS fallback fonts\n", 0 // housekeeping every cycle does
+		}
 		t.Fatalf("unexpected exec: %s", line)
 		return "", 1
 	}
@@ -771,5 +774,141 @@ func TestCycleDefaultRunsEachFilterAlone(t *testing.T) {
 	}
 	if n := calledWith(*calls, "utk run_tests --mode editor --filter ATests;"); n != 0 {
 		t.Fatalf("filters were merged: %d", n)
+	}
+}
+
+func TestQueueCancelRemovesTheRequest(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UTK_QUEUE_DIR", dir)
+	writeRequest(dir, queueRequest{ID: "20261005-100000-aaaa", Kind: "compile", PID: os.Getpid()})
+	var out, errb bytes.Buffer
+	if code := runQueue([]string{"cancel", "20261005-100000-aaaa"}, &out, &errb); code != 0 {
+		t.Fatal(errb.String())
+	}
+	if reqs, _ := readRequests(dir); len(reqs) != 0 {
+		t.Fatalf("still queued: %+v", reqs)
+	}
+	if code := runQueue([]string{"cancel", "20261005-100000-aaaa"}, &out, &errb); code != 1 {
+		t.Fatalf("cancelling nothing exit %d, want 1", code)
+	}
+}
+
+// A job whose request is gone (cancelled, or its submitter was killed by its
+// own deadline) is Editor time for nobody: it stops instead of running out
+// its timeout while everyone else waits behind it.
+func TestRunWithAbortStopsACommandNobodyWaitsFor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sleep")
+	}
+	started := time.Now()
+	out, code := runWithAbort("", time.Minute, nil, func() bool { return time.Since(started) > 200*time.Millisecond }, "sleep", "30")
+	if code != 130 || !strings.Contains(out, "CANCELLED") {
+		t.Fatalf("code %d out %q", code, out)
+	}
+	if time.Since(started) > 10*time.Second {
+		t.Fatalf("took %s", time.Since(started))
+	}
+}
+
+func TestCycleCancelledJobReportsCancelled(t *testing.T) {
+	fakeExec(t, fakeAnswers{"a.sh": {"half done\n", 130}})
+	reqs := []queueRequest{{ID: "a", Kind: "scene", Cwd: "/p", Args: queueArgs{Script: "a.sh"}}}
+	c := newCycle(t.TempDir(), reqs, io.Discard)
+	c.runSceneJobs()
+	if c.results["a"].Status != "CANCELLED" {
+		t.Fatalf("result: %+v", c.results["a"])
+	}
+}
+
+// Leaked fonts become collectable at a domain reload, and the refresh is where
+// a cycle reloads — so that is where the cycle collects them.
+func TestServeOnceCollectsLeakedFontsAfterTheRefresh(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UTK_TELEMETRY", dir+"/t.jsonl")
+	calls := fakeExec(t, fakeAnswers{
+		"utk status":            {"ok\n", 0},
+		"unity-lock.sh acquire": {"acquired\n", 0},
+		"unity-lock.sh release": {"released\n", 0},
+		"utk set_autotick":      {"ok\n", 0},
+		"unity-test.sh offline": {"COMPILE OK\n", 0},
+		"utk editor refresh":    {"compile: completed\n", 0},
+		"utk editor gc":         {"destroyed 25\n", 0},
+	})
+	writeRequest(dir, queueRequest{ID: "20261005-100000-c1", Kind: "compile", PID: os.Getpid(), Cwd: "/p", Submitted: time.Now()})
+	serveOnce(dir, io.Discard)
+	var seq []string
+	for _, c := range *calls {
+		seq = append(seq, c.name+" "+strings.Join(c.args, " "))
+	}
+	joined := strings.Join(seq, "|")
+	gc, refresh, release := strings.Index(joined, "utk editor gc"), strings.Index(joined, "utk editor refresh"), strings.Index(joined, "unity-lock.sh release")
+	if gc < 0 || gc < refresh || gc > release {
+		t.Fatalf("order: %v", seq)
+	}
+}
+
+func TestMaybeRestart(t *testing.T) {
+	answers := fakeAnswers{
+		"unity-lock.sh acquire": {"acquired\n", 0},
+		"unity-lock.sh release": {"released\n", 0},
+		"utk editor restart":    {"utk: Editor restarted in 70s\n", 0},
+	}
+	oldDeg := editorDegraded
+	t.Cleanup(func() { editorDegraded = oldDeg })
+	for _, c := range []struct {
+		name            string
+		degraded, queue bool
+		env             string
+		want            int
+	}{
+		{"degraded and idle", true, false, "", 1},
+		{"healthy", false, false, "", 0},
+		{"someone is waiting", true, true, "", 0},
+		{"switched off", true, false, "1", 0},
+	} {
+		dir := t.TempDir()
+		calls := fakeExec(t, answers)
+		t.Setenv("UTK_NO_AUTO_RESTART", c.env)
+		editorDegraded = func(string) (string, bool) { return "the Editor has degraded", c.degraded }
+		if c.queue {
+			writeRequest(dir, queueRequest{ID: "20261005-100000-aaaa", Kind: "compile", PID: os.Getpid(), Cwd: "/p"})
+		}
+		maybeRestart(dir, "/p", io.Discard)
+		if n := calledWith(*calls, "utk editor restart"); n != c.want {
+			t.Errorf("%s: restart called %d times, want %d", c.name, n, c.want)
+		}
+		if c.want == 1 && (calledWith(*calls, "unity-lock.sh acquire") != 1 || calledWith(*calls, "unity-lock.sh release") != 1) {
+			t.Errorf("%s: restart must hold the Editor lock: %v", c.name, *calls)
+		}
+	}
+}
+
+// A request cancelled while still queued gets no result, ever: its submitter
+// must notice the request is gone instead of sitting out its --wait.
+func TestSubmitReturnsWhenItsQueuedRequestIsCancelled(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UTK_QUEUE_DIR", dir)
+	oldSpawn, oldPoll := serveSpawn, submitPoll
+	serveSpawn, submitPoll = func(string) error { return nil }, 10*time.Millisecond
+	t.Cleanup(func() { serveSpawn, submitPoll = oldSpawn, oldPoll })
+	go func() {
+		for {
+			if ents, _ := os.ReadDir(filepath.Join(dir, "requests")); len(ents) == 1 {
+				os.Remove(filepath.Join(dir, "requests", ents[0].Name()))
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+	done := make(chan int, 1)
+	var errb bytes.Buffer
+	go func() { done <- runSubmit(dir, []string{"compile", "--wait", "60"}, io.Discard, &errb) }()
+	select {
+	case code := <-done:
+		if code != 130 || !strings.Contains(errb.String(), "cancelled") {
+			t.Fatalf("exit %d: %s", code, errb.String())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("submit kept waiting for a cancelled request")
 	}
 }

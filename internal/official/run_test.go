@@ -156,3 +156,39 @@ func TestCaptureRetry(t *testing.T) {
 		}
 	})
 }
+
+// During `utk editor restart` no Editor process exists for a minute. A call
+// landing there must wait for the new one instead of failing with "not running".
+func TestCaptureRetry_WaitsOutARestart(t *testing.T) {
+	calls := fakeCLI(t, false, "Cannot connect to Unity Editor Pipeline server at 127.0.0.1:7800", "Cannot connect to Unity Editor Pipeline server at 127.0.0.1:7800", "")
+	old := Restarting
+	t.Cleanup(func() { Restarting = old })
+	Restarting = func() bool { return *calls < 3 }
+	if _, code := CaptureRetry([]string{"command", "x"}, io.Discard); code != 0 {
+		t.Fatalf("code = %d, want the call to succeed once the Editor is back", code)
+	}
+	if *calls != 3 {
+		t.Fatalf("calls = %d, want 3", *calls)
+	}
+}
+
+// While the Editor process is gone the CLI stops saying "cannot connect" and
+// says it knows no such Editor (seen live, 6 s into `utk editor restart`).
+// That is only worth waiting out during a restart: otherwise it is the truth.
+func TestCaptureRetry_NoInstanceIsRetriedOnlyDuringARestart(t *testing.T) {
+	const gone = "No Pipeline instance found for project: /p. Make sure Unity Editor is running with the Pipeline package installed."
+	old := Restarting
+	t.Cleanup(func() { Restarting = old })
+
+	calls := fakeCLI(t, false, gone, gone, "")
+	Restarting = func() bool { return *calls < 3 }
+	if _, code := CaptureRetry([]string{"command", "x"}, io.Discard); code != 0 || *calls != 3 {
+		t.Fatalf("during a restart: code %d after %d calls, want success on the 3rd", code, *calls)
+	}
+
+	calls = fakeCLI(t, false, gone, "")
+	Restarting = func() bool { return false }
+	if _, code := CaptureRetry([]string{"command", "x"}, io.Discard); code == 0 || *calls != 1 {
+		t.Fatalf("no restart: code %d after %d calls, want the failure at once", code, *calls)
+	}
+}

@@ -114,6 +114,9 @@ func mapVerb(cmd string, args []string) (unityArgs []string, kind, only string) 
 		return append([]string{"command", "import_asset"}, args...), "exec", ""
 	case "editor":
 		if len(args) > 0 {
+			if args[0] == "gc" {
+				return []string{"command", "eval", gcSnippet}, "exec", ""
+			}
 			if tool, ok := editorSubMap[args[0]]; ok {
 				// --compile is implicit in recompile; drop remaining legacy flags.
 				return []string{"command", tool}, "exec", ""

@@ -10,6 +10,7 @@ type Options struct {
 	Truncate int    // opt-in array truncation for `exec` (0 = disabled)
 	Grep     string // keep only matching lines of `list` (empty = no filter)
 	Max      int    // screenshot long-edge cap in pixels (0 = full size)
+	MaxTime  int    // wall-clock limit for the whole call in seconds (0 = none)
 	// ConsoleOnly narrows `console` to one exact severity. mapVerb sets it,
 	// not SplitUtkFlags: --type is forwarded (as --level) as well as read.
 	ConsoleOnly string
@@ -54,6 +55,14 @@ func SplitUtkFlags(args []string) ([]string, Options) {
 			if i+1 < len(args) {
 				if n, err := strconv.Atoi(args[i+1]); err == nil {
 					opts.Max = n
+					i++
+					continue
+				}
+			}
+		case "--max-time":
+			if i+1 < len(args) {
+				if n, err := strconv.Atoi(args[i+1]); err == nil {
+					opts.MaxTime = n
 					i++
 					continue
 				}

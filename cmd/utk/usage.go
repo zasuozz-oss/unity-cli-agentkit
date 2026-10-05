@@ -45,10 +45,22 @@ stderr are preserved. Run ` + "`utk list`" + ` for the ~150 official tools.
                           shared-Editor queue: one compile/reload, everyone's test
                           run and one Play session per cycle for every agent;
                           blocks until YOUR result (exit = its exit)
-  utk queue status | stats [--since 24h] | serve
+  utk queue status | stats [--since 24h] | cancel <id> | serve
+                          cancel withdraws a queued request or stops a running job
   utk editor refresh|play|pause|stop|status
                           recompile (waits for it; exit 1 on compile errors)
                           and play-mode control
+  utk editor wait [--timeout S]
+                          block until the Editor answers and is neither compiling
+                          nor reloading (default 300 s; exit 124 on timeout) —
+                          instead of a status/sleep loop
+  utk editor restart [--force]
+                          quit the Editor, start it again, wait until ready. An
+                          Editor up for a day reloads its domain 10x slower;
+                          ` + "`editor status`" + ` says when. Refuses while playing or with
+                          unsaved scenes unless --force
+  utk editor gc           destroy the OS fallback fonts Unity leaks at every
+                          domain reload (the queue runs it each cycle)
   utk build --confirm true [--outputPath P] [--target T]
                           Player build; waits for the verdict (up to 30 min),
                           exit 1 unless Succeeded; --wait false hands off
@@ -69,11 +81,15 @@ Flags:
   --truncate N            shorten JSON arrays in exec output (opt-in, lossy)
   --grep <pattern>        (list) keep only matching tools
   --max <px>              (screenshot) cap the long edge; 0 keeps native size
+  --max-time <s>          hard stop for the whole call: exit 124 at the deadline,
+                          the unity child killed (macOS has no timeout(1))
 
 Env:
   UTK_UNITY_BIN           path to the unity binary if it is not on PATH
   UNITY_CLI_AGENTKIT_HOME kit home (default ~/.unity-cli-agentkit)
   UTK_NO_EXEC_LOGS        skip folding a snippet's Debug.Log into exec output
+  UTK_NO_AUTO_RESTART     the queue never restarts a degraded Editor by itself
+  UTK_RELOAD_LIMIT_MS     domain reload time that counts as degraded (default 10000)
 `
 
 // projectRoot resolves the Unity project the official CLI will target, in the

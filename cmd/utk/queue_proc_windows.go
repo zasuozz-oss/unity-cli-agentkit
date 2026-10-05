@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"os/exec"
 	"time"
@@ -13,26 +12,49 @@ import (
 // runWithTimeout on Windows kills only the direct child: there is no process
 // group to signal. Good enough for the Windows agents, who run one job at a time.
 func runWithTimeout(cwd string, timeout time.Duration, env []string, name string, args ...string) (string, int) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
+	return runWithAbort(cwd, timeout, env, nil, name, args...)
+}
+
+// runWithAbort is runWithTimeout that also stops the command (exit 130) once
+// gone() reports that nobody waits for its result. gone is polled every second.
+func runWithAbort(cwd string, timeout time.Duration, env []string, gone func() bool, name string, args ...string) (string, int) {
+	cmd := exec.Command(name, args...)
 	// Pipe holders outside the process group (setsid/daemonised helpers) would make Wait block forever.
 	cmd.WaitDelay = 3 * time.Second
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), env...)
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
-	err := cmd.Run()
-	if ctx.Err() != nil {
-		return buf.String() + "\nTIMEOUT after " + timeout.String() + "\n", 124
+	if err := cmd.Start(); err != nil {
+		return err.Error(), 127
 	}
-	if ee, ok := err.(*exec.ExitError); ok {
-		return buf.String(), ee.ExitCode()
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	deadline := time.After(timeout)
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case err := <-done:
+			if ee, ok := err.(*exec.ExitError); ok {
+				return buf.String(), ee.ExitCode()
+			}
+			if err != nil {
+				return buf.String() + err.Error(), 1
+			}
+			return buf.String(), 0
+		case <-deadline:
+			cmd.Process.Kill()
+			<-done
+			return buf.String() + "\nTIMEOUT after " + timeout.String() + "\n", 124
+		case <-tick.C:
+			if gone != nil && gone() {
+				cmd.Process.Kill()
+				<-done
+				return buf.String() + "\nCANCELLED: nobody is waiting for this job\n", 130
+			}
+		}
 	}
-	if err != nil {
-		return buf.String() + err.Error(), 1
-	}
-	return buf.String(), 0
 }
 
 // detach lets the spawned coordinator outlive the submitting agent's session.

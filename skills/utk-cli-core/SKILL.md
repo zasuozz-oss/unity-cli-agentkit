@@ -60,9 +60,28 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   `--timeout_ms`, `wait_for` uses `--timeout_s`. A game's own `Tools/*.cs`
   header saying `--timeout 120` means seconds — pass 120000 to `exec`.
 - **No `timeout` on macOS** — the command does not exist by default (exit
-  127, the wrapped command never runs). Use the Bash tool's timeout parameter,
-  `utk`'s own `--timeout`, or
-  `perl -e 'alarm shift; exec @ARGV' 60 utk …`.
+  127, the wrapped command never runs). Use `utk --max-time <seconds> <verb> …`:
+  the call exits 124 at the deadline and its `unity` child is killed. (For a
+  non-utk command: the Bash tool's timeout parameter, or
+  `perl -e 'alarm shift; exec @ARGV' 60 cmd …`.)
+- **Waiting for the Editor** (after a restart, a big import, somebody else's
+  compile): `utk editor wait [--timeout S]` blocks until it answers and is
+  neither compiling nor reloading; exit 124 names what it was still doing.
+  Never a `until utk editor status …; do sleep 5; done` loop.
+- **A slow Editor is usually an old Editor.** Unity leaks objects at every
+  domain reload, so after a day a reload takes 30 s instead of 3 and calls
+  time out around it. `utk editor status` prints `the Editor has degraded …`
+  when its own log shows that; `utk editor restart` then quits, relaunches and
+  waits until ready (~1-2 min). It refuses while the Editor is playing or
+  holds unsaved scenes; `--force` is for a hung Editor only. Calls from other
+  agents during the restart wait for the new Editor instead of failing.
+  The project-side lever: every Enter Play is one more domain reload unless
+  Project Settings → Editor → Enter Play Mode is "Reload Scene only". That
+  needs each class with a mutable static to reset it in a
+  `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]`
+  method. Do not shortcut that by re-running type initializers through
+  reflection: Mono's JIT keeps pointers to the old `static readonly` objects
+  and the Editor crashes on the next Play (measured).
 - **The macOS shell is zsh**: an unquoted `$VAR` is *not* word-split. Keeping
   flags in a string (`P="--project-path /x"; utk console $P`) hands utk one
   argument `--project-path /x`, refused as an unknown flag — `cd` into the
