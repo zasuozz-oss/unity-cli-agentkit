@@ -131,14 +131,24 @@ every flag you depend on explicitly right after `AddComponent`.
 Exec runs on Unity's **main thread**: the command executes only while the
 editor loop is pumping. Typical timeout causes, in order of likelihood:
 
-- **Editor backgrounded** — the OS throttles an unfocused Unity (macOS App
-  Nap especially). Keep the Unity window focused/visible during agent runs.
+- **Script compilation / domain reload** in progress — in-flight requests are
+  dropped; `utk` retries them. A reload that takes 3 s on a fresh Editor takes
+  30 s+ on one that has been up for a day, and then every call around a
+  compile, a test run or a Play times out. Run `utk editor status` first: it
+  says `the Editor has degraded …` when that is the cause, and
+  `utk editor restart` fixes it (utk-cli-core). This, not the next cause, was
+  behind a full day of timeouts across seven agents.
+- **Modal dialog or progress bar** open in the editor.
+- **Editor backgrounded** — the OS can throttle an unfocused Unity. Rule it
+  out before blaming it: Preferences → General → Interaction Mode =
+  No Throttling keeps the loop pumping with the window in the back.
   In play mode, step frames yourself instead (utk-playmode-driving).
   Game frozen while `utk` still answers → Run In Background is off; see the
   hang triage in utk-playmode-driving.
-- **Modal dialog or progress bar** open in the editor.
-- **Script compilation / domain reload** in progress — in-flight requests are
-  dropped; just retry after it settles.
+
+Waiting for the Editor is `utk editor wait [--timeout S]`, and a hard deadline
+on any call is `utk --max-time <seconds> <verb> …` (exit 124) — never a
+`sleep` loop or `perl -e 'alarm …'`.
 
 The budget is `--timeout <ms>`, **default 60000** — raise it (e.g.
 `--timeout 300000`) for a snippet that legitimately does heavy work, rather
