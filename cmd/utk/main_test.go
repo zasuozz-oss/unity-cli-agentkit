@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestMain lets this test binary impersonate the official `unity` binary when
@@ -24,9 +25,19 @@ func TestMain(m *testing.M) {
 		}
 		os.WriteFile(argvFile, []byte(strings.Join(os.Args[1:], " ")), 0o644)
 		body, _ := os.ReadFile(os.Getenv(bodyVar))
+		// A call that hangs, for the tests of utk's own deadlines.
+		if ms, _ := strconv.Atoi(os.Getenv("UTK_FAKE_UNITY_SLEEP_MS")); ms > 0 {
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+		}
 		os.Stdout.Write(body)
 		code, _ := strconv.Atoi(os.Getenv("UTK_FAKE_UNITY_EXIT"))
 		os.Exit(code)
+	}
+	// A request's own command runs through queueJobExec so it can be stopped
+	// when the request is withdrawn; in tests it answers from the same fake
+	// as every other coordinator call.
+	queueJobExec = func(cwd string, timeout time.Duration, env []string, gone func() bool, name string, args ...string) (string, int) {
+		return queueExec(cwd, timeout, env, name, args...)
 	}
 	os.Exit(m.Run())
 }

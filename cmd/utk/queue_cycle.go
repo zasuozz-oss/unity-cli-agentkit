@@ -21,6 +21,10 @@ import (
 // Editor. The default lives in queue_proc_*.go (process-group kill on timeout).
 var queueExec = runWithTimeout
 
+// queueJobExec runs a request's own command. Unlike queueExec it also stops
+// the command once gone() says nobody is waiting for it any more.
+var queueJobExec = runWithAbort
+
 func utkSelf() string {
 	p, err := os.Executable()
 	if err != nil {
@@ -344,10 +348,16 @@ func (c *cycle) runJobCommand(r queueRequest, env []string) (string, int) {
 	if to <= 0 {
 		to = 300 * time.Second
 	}
-	if r.Args.Script != "" {
-		return queueExec(c.cwd, to, env, "bash", r.Args.Script)
+	// Withdrawn (`utk queue cancel`, a --wait that ran out) or orphaned (the
+	// submitter died): the job would hold the Editor for a result nobody reads.
+	gone := func() bool {
+		_, err := os.Stat(filepath.Join(c.dir, "requests", r.ID+".json"))
+		return err != nil || !pidAlive(r.PID)
 	}
-	return queueExec(c.cwd, to, env, utkSelf(), r.Args.Cmd...)
+	if r.Args.Script != "" {
+		return queueJobExec(c.cwd, to, env, gone, "bash", r.Args.Script)
+	}
+	return queueJobExec(c.cwd, to, env, gone, utkSelf(), r.Args.Cmd...)
 }
 
 // finishCommand maps a command's exit onto a result status and collects
@@ -362,6 +372,8 @@ func (c *cycle) finishCommand(r queueRequest, out string, code int) {
 	switch {
 	case code == 124:
 		c.finish(r, "TIMEOUT", 124, out, arts...)
+	case code == 130:
+		c.finish(r, "CANCELLED", 130, out, arts...)
 	case code == 0:
 		c.finish(r, "PASS", 0, out, arts...)
 	default:
@@ -433,8 +445,8 @@ func (c *cycle) playSession(reqs []queueRequest) {
 		env := []string{"UNITY_IN_PLAY=1", "UNITY_LOCK_OWNER=coordinator", "UNITY_QUEUE_REQUEST=" + r.ID}
 		out, code := c.runJobCommand(r, env)
 		c.finishCommand(r, out, code)
-		if code == 124 {
-			// A hung script may have left Play in an unknown state: restart
+		if code == 124 || code == 130 {
+			// A hung or stopped script may have left Play in an unknown state: restart
 			// the session for whoever is left (spec §7).
 			queueExec(c.cwd, time.Minute, nil, utkSelf(), "editor", "stop")
 			if out, code := queueExec(c.cwd, 2*time.Minute, nil, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {

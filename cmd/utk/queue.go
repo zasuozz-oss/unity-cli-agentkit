@@ -245,7 +245,7 @@ func intFlag(name string, next func() (string, error)) (int, error) {
 // runQueue dispatches `utk queue <sub>`.
 func runQueue(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: utk queue submit|status|stats|serve")
+		fmt.Fprintln(stderr, "usage: utk queue submit|status|stats|cancel|serve")
 		return 2
 	}
 	dir := queueDir()
@@ -280,8 +280,22 @@ func runQueue(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "serve":
 		return runServe(dir, stdout, stderr)
+	case "cancel":
+		// Removing the request is the whole protocol: a queued one is never
+		// picked up, a running one is stopped by its job's gone() check, and
+		// the submitter sees its request vanish.
+		if len(args) != 2 {
+			fmt.Fprintln(stderr, "usage: utk queue cancel <id>   (ids: utk queue status)")
+			return 2
+		}
+		if err := os.Remove(filepath.Join(dir, "requests", args[1]+".json")); err != nil {
+			fmt.Fprintf(stderr, "utk queue cancel: no request %s (see utk queue status)\n", args[1])
+			return 1
+		}
+		fmt.Fprintln(stdout, "cancelled", args[1])
+		return 0
 	}
-	fmt.Fprintln(stderr, "usage: utk queue submit|status|stats|serve")
+	fmt.Fprintln(stderr, "usage: utk queue submit|status|stats|cancel|serve")
 	return 2
 }
 
@@ -299,6 +313,8 @@ func describeArgs(r queueRequest) string {
 	}
 	return ""
 }
+
+var submitPoll = time.Second
 
 // runSubmit writes the request, makes sure a coordinator is up, and blocks
 // until its own result lands (or --wait runs out).
@@ -329,7 +345,16 @@ func runSubmit(dir string, args []string, stdout, stderr io.Writer) int {
 			os.Remove(filepath.Join(dir, "results", r.ID+".json"))
 			return res.Exit
 		}
-		time.Sleep(time.Second)
+		// The coordinator writes a result before it removes the request, so a
+		// request gone with no result was cancelled while still queued.
+		if _, err := os.Stat(filepath.Join(dir, "requests", r.ID+".json")); err != nil {
+			if _, ok := readResult(dir, r.ID); !ok {
+				fmt.Fprintf(stderr, "utk queue: %s was cancelled before it ran\n", r.ID)
+				return 130
+			}
+			continue
+		}
+		time.Sleep(submitPoll)
 	}
 	removeRequest(dir, r.ID)
 	fmt.Fprintf(stderr, "utk queue: no result for %s after %ds; request withdrawn\n", r.ID, wait)

@@ -35,6 +35,15 @@ Rules:
 - File ownership is yours to keep: two agents editing one prefab or one scene is a
   merge conflict the queue cannot prevent. Name your files on the task board.
 
+- Submitted the wrong thing, or a job is stuck? `utk queue cancel <id>` (id from
+  `utk queue status`): a queued request is withdrawn, a running job is stopped
+  and reported `CANCELLED`. A job whose submitter died is stopped the same way.
+- The coordinator keeps the Editor healthy between cycles: it destroys the fonts
+  Unity leaks at each reload (`utk editor gc`), and when domain reloads have
+  become several times slower than at startup and nobody is queued it restarts
+  the Editor (`utk editor restart`, ~1-2 min, never while playing or with
+  unsaved scenes). `UTK_NO_AUTO_RESTART=1` turns the restart off.
+
 ## Inspect
 `utk queue status` (pending), `utk queue stats --since 24h` (wait/hold per kind),
 `~/.unity-cli-agentkit/queue/<editor>/serve.log`. The coordinator starts on the first

@@ -17,6 +17,9 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+// exit is os.Exit, swappable so the --max-time test can watch it fire.
+var exit = os.Exit
+
 // run holds all routing/exec/print logic, taking argv (without the program
 // name) and injectable stdout/stderr so it is testable without a real `unity`
 // binary on PATH driving os.Stdout directly.
@@ -25,6 +28,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// verb: `utk --raw console` otherwise took --raw as the command name and ran
 	// `unity command --raw console`, which fails with an unrelated error.
 	args, opts := filter.SplitUtkFlags(args)
+	// --max-time is the hard stop every caller built from `perl -e 'alarm …'`
+	// (macOS has no timeout(1)): the call ends at the deadline whatever it is
+	// waiting on, and its `unity` child goes with it. 124 is coreutils' code.
+	if opts.MaxTime > 0 {
+		t := time.AfterFunc(time.Duration(opts.MaxTime)*time.Second, func() {
+			fmt.Fprintf(stderr, "utk: TIMEOUT after %ds: %s\n", opts.MaxTime, strings.Join(args, " "))
+			official.KillChildren()
+			exit(124)
+		})
+		defer t.Stop()
+	}
 	if len(args) < 1 {
 		fmt.Fprintln(stderr, "utk: missing command (try: utk status | utk list | utk init)")
 		return 2
@@ -39,6 +53,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// the official CLI as a tool name.
 	if cmd == "queue" {
 		return runQueue(rest, stdout, stderr)
+	}
+	// `editor wait` and `editor restart` act on the Editor process itself,
+	// including when it cannot answer a single tool call.
+	if cmd == "editor" && len(rest) > 0 {
+		switch rest[0] {
+		case "wait":
+			return runEditorWait(rest[1:], stdout, stderr)
+		case "restart":
+			return runEditorRestart(rest[1:], stderr)
+		}
 	}
 	// `utk --help` used to map onto `unity command --help`, which documents the
 	// official CLI and never mentions a single utk verb — an agent that runs it
@@ -120,7 +144,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// ~60s headroom 0.4.0 gave in practice; reserialize rides eval, so a large
 	// asset batch gets the same room.
 	execMS := 0
-	if !opts.Raw && (cmd == "exec" || cmd == "reserialize") {
+	if !opts.Raw && (cmd == "exec" || cmd == "reserialize" || cmd == "editor" && len(rest) > 0 && rest[0] == "gc") {
 		execMS = 60000
 		if v := findFlag(rest, "--timeout"); v != "" {
 			n, err := strconv.Atoi(v)
@@ -345,6 +369,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// status looks: every other verb fails at connect and never gets here.
 	if kind == "status" && filter.ProjectPath(payload) == "" {
 		answerModal(stderr)
+	}
+	// `editor status` is what an agent runs when the Editor feels slow, so it
+	// is where a worn-out Editor gets named.
+	if cmd == "editor" && len(rest) > 0 && rest[0] == "status" {
+		if msg, bad := editorDegraded(findFlag(unityArgs, "--project-path")); bad {
+			fmt.Fprintf(stderr, "utk: %s\n  `utk editor restart` brings it back (it refuses while playing or with unsaved scenes)\n", msg)
+		}
 	}
 	// A command that succeeded while its tests failed still exits 0 upstream.
 	// Every `utk run_tests && ship` reads that as green.

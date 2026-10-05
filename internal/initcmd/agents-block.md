@@ -92,6 +92,9 @@ Common tasks:
 - Verify edited C# compiles → `utk editor refresh` (blocks until the compile ends, prints its errors, exits non-zero on failure)
 - Run tests → first `unity-test.sh offline <repo> --tests <YourTestClass>` (utk-test-runner skill, no Editor); then only what needs the Editor via `utk run_tests --mode editor|playmode --filter <YourTestClass>` (exits non-zero on failures). `utk test` is the batchmode runner and aborts while the Editor is open — only use it with the Editor closed
 - Control/inspect play mode → `utk editor refresh|play|pause|stop|status`
+- Wait until the Editor can take a command (after a restart, import, somebody else's compile) → `utk editor wait [--timeout S]` (exit 124 on timeout). Never a status/sleep loop
+- Hard deadline on any call → `utk --max-time <seconds> <verb> …` (exit 124; macOS has no `timeout`)
+- Editor slow or timing out after hours of use (`utk editor status` says "degraded") → `utk editor restart` (refuses while playing or with unsaved scenes; `--force` only for a hung Editor)
 - Build the Player → `utk build --confirm true [--outputPath P]` in the background — it waits for the verdict (≤30 min) and exits non-zero unless `Succeeded`; the report comes back without the per-file inventory (`--raw` for all of it)
 - Import an external file (image/texture/audio/model) into `Assets/` → `utk import <file> [dest]` — copies + imports in one call and returns the GUID. NEVER push file bytes as base64 through `utk exec`; get the file on disk first (download/decode outside Unity), then import by path. Tune importer settings afterwards with `utk set_import_settings`
 - Validate an asset edited as text (.prefab/.unity/.asset) → `utk editor refresh`, then `utk console --type error`. `utk reserialize <path>` only for a file the editor has already imported — on an unimported one it overwrites your edit with the stale in-memory copy

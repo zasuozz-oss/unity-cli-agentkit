@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,7 +23,18 @@ var execUnity = func(args []string, stdout, stderr io.Writer) int {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintln(stderr, "utk:", err)
+		return 1
+	}
+	childMu.Lock()
+	children[cmd] = struct{}{}
+	childMu.Unlock()
+	err = cmd.Wait()
+	childMu.Lock()
+	delete(children, cmd)
+	childMu.Unlock()
+	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			return ee.ExitCode()
 		}
@@ -30,6 +42,21 @@ var execUnity = func(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+var (
+	childMu  sync.Mutex
+	children = map[*exec.Cmd]struct{}{}
+)
+
+// KillChildren ends every `unity` call in flight. utk exiting on its own
+// deadline would otherwise leave them talking to the Editor.
+func KillChildren() {
+	childMu.Lock()
+	defer childMu.Unlock()
+	for c := range children {
+		c.Process.Kill()
+	}
 }
 
 // Run streams the official CLI straight through (the --raw path).
@@ -61,6 +88,12 @@ var reloadErrors = []string{
 	"Network error: An error occurred while sending the request",
 }
 
+// Restarting reports that `utk editor restart` has the Editor down on purpose.
+// Without it a call landing in that minute finds no Editor process at all and
+// fails at once with "not running" — the one moment waiting is certain to work.
+// It must turn false by itself (utk keys it on a marker file's age).
+var Restarting = func() bool { return false }
+
 const (
 	// A play-mode or post-import reload in a mid-size project keeps the server
 	// down 10-30s; at 8s the agents' own `sleep 5` retry loops were still the
@@ -82,22 +115,29 @@ const (
 // would only make "Unity is not running" take the whole retry budget to say.
 func CaptureRetry(args []string, stderr io.Writer) ([]byte, int) {
 	out, errText, code := capture(args)
-	if code == 0 || !reloading(out, errText) || !editorRunning() {
+	// Between the old Editor's exit and the new one's first heartbeat the CLI
+	// knows no Editor for the project at all; mid-restart that too is a window.
+	away := func() bool {
+		return reloading(out, errText) || Restarting() && (strings.Contains(errText, noInstance) || bytes.Contains(out, []byte(noInstance)))
+	}
+	if code == 0 || !away() || !(editorRunning() || Restarting()) {
 		io.WriteString(stderr, errText)
 		return out, code
 	}
 	deadline := time.Now().Add(retryBudget)
-	for time.Now().Before(deadline) {
+	for time.Now().Before(deadline) || Restarting() {
 		time.Sleep(retryStep)
 		// Only the last attempt's stderr is forwarded: the retried-away errors
 		// describe a window that has since closed.
-		if out, errText, code = capture(args); code == 0 || !reloading(out, errText) {
+		if out, errText, code = capture(args); code == 0 || !away() {
 			break
 		}
 	}
 	io.WriteString(stderr, errText)
 	return out, code
 }
+
+const noInstance = "No Pipeline instance found"
 
 func capture(args []string) (stdout []byte, stderr string, code int) {
 	var o, e bytes.Buffer

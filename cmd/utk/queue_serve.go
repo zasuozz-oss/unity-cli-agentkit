@@ -54,6 +54,7 @@ func serveOnce(dir string, stderr io.Writer) int {
 		return 0
 	}
 	cwd := reqs[0].Cwd
+	lastServedCwd = cwd
 	var results map[string]queueResult
 	if !editorAnswers(cwd) {
 		// A modal dialog or a dead server: nothing we send will run. Say so
@@ -106,6 +107,33 @@ func serveOnce(dir string, stderr io.Writer) int {
 	return written // failed writes must not count, or serve would skip its idle sleep and hammer the Editor
 }
 
+// lastServedCwd is the project of the latest cycle: the one maybeRestart checks.
+var lastServedCwd string
+
+// maybeRestart restarts a degraded Editor (health.go) in the gap after a
+// cycle, when nobody is queued. It holds the Editor lock so a legacy
+// unity-job.sh user waits instead of finding no Editor; `utk editor restart`
+// itself refuses while the Editor plays or holds unsaved scenes.
+func maybeRestart(dir, cwd string, stderr io.Writer) {
+	if cwd == "" || os.Getenv("UTK_NO_AUTO_RESTART") != "" {
+		return
+	}
+	if reqs, _ := readRequests(dir); len(reqs) > 0 {
+		return
+	}
+	msg, bad := editorDegraded(cwd)
+	if !bad {
+		return
+	}
+	if _, code := queueExec(cwd, time.Minute, nil, "bash", lockScript(), "acquire", "coordinator", "5"); code != 0 {
+		return // somebody is using the Editor outside the queue; try after the next cycle
+	}
+	defer releaseEditorLock(cwd)
+	fmt.Fprintf(stderr, "utk queue: %s; restarting it while nobody is waiting (UTK_NO_AUTO_RESTART=1 turns this off)\n", msg)
+	out, _ := queueExec(cwd, restartReadyWait+3*time.Minute, nil, utkSelf(), "editor", "restart")
+	io.WriteString(stderr, out)
+}
+
 // sweepResults deletes results nobody collected within an hour (spec §7): the
 // submitter withdrew or died, and nothing else ever reads them.
 func sweepResults(dir string) {
@@ -144,6 +172,10 @@ func (c *cycle) holdEditor(cwd string, editorOK bool) {
 	queueExec(cwd, time.Minute, nil, utkSelf(), "set_autotick", "--enable", "true")
 	if editorOK {
 		c.runEditorRefresh()
+	}
+	// Fonts Unity leaked before the reload above are collectable now (gc.go).
+	if out, code := queueExec(cwd, 2*time.Minute, nil, utkSelf(), "editor", "gc"); code == 0 && !strings.HasPrefix(out, "destroyed 0 ") {
+		io.WriteString(c.stderr, "utk queue: gc: "+firstLine(out)+"\n")
 	}
 	c.runTests()
 	c.runSceneJobs()
@@ -213,6 +245,7 @@ func runServe(dir string, stdout, stderr io.Writer) int {
 			continue
 		}
 		lastWork = time.Now()
+		maybeRestart(dir, lastServedCwd, stderr)
 		if os.Getenv("UTK_QUEUE_ONCE") == "1" {
 			return 0
 		}

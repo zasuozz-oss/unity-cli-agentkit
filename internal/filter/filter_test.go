@@ -45,3 +45,10 @@ func TestApplyKinds(t *testing.T) {
 		t.Fatal("unknown kind must be identity")
 	}
 }
+
+func TestSplitUtkFlags_MaxTime(t *testing.T) {
+	rest, opts := SplitUtkFlags([]string{"--max-time", "90", "exec", "return 1;"})
+	if opts.MaxTime != 90 || len(rest) != 2 || rest[0] != "exec" {
+		t.Fatalf("MaxTime = %d rest = %v", opts.MaxTime, rest)
+	}
+}
