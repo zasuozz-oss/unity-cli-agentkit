@@ -35,6 +35,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if cmd == "init" {
 		return runInit(rest) // implemented in init.go
 	}
+	// `queue` is utk's own coordinator for a shared Editor; it never reaches
+	// the official CLI as a tool name.
+	if cmd == "queue" {
+		return runQueue(rest, stdout, stderr)
+	}
 	// `utk --help` used to map onto `unity command --help`, which documents the
 	// official CLI and never mentions a single utk verb — an agent that runs it
 	// to orient itself learns nothing about the tool it is holding.
@@ -255,6 +260,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		raw, code = pollBuild(raw, findFlag(unityArgs, "--project-path"), stderr)
 	}
 
+	// UTK_RAW_REPORT=1 hands back the waited-for envelope untouched: the queue
+	// coordinator splits a merged test report by FullName and needs every field
+	// the compact view drops.
+	if os.Getenv("UTK_RAW_REPORT") != "" {
+		stdout.Write(raw)
+		return code
+	}
 	env, err := official.Parse(raw)
 	if err != nil {
 		// Not an envelope (older CLI? plain text?) → loss-safe passthrough.

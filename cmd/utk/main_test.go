@@ -329,3 +329,34 @@ func TestRun_ReserializeResolvesFromProjectRoot(t *testing.T) {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
+
+func TestRun_QueueStatusNeedsNoEditor(t *testing.T) {
+	t.Setenv("UTK_QUEUE_DIR", t.TempDir())
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"queue", "status"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "0 pending") {
+		t.Fatalf("code=%d out=%s err=%s", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestUsageMentionsQueue(t *testing.T) {
+	if !strings.Contains(usage, "utk queue submit") {
+		t.Fatal("usage does not document utk queue")
+	}
+}
+
+// The queue coordinator splits a merged report by FullName, which the compact
+// view drops: UTK_RAW_REPORT=1 must hand back the waited-for envelope as is.
+func TestRun_RawReportEnvKeepsEnvelope(t *testing.T) {
+	body := readFixture(t, "eval_int.json")
+	bin, _ := fakeUnity(t, body, 0)
+	t.Setenv("UTK_UNITY_BIN", bin)
+	t.Setenv("UTK_NO_EXEC_LOGS", "1")
+	t.Setenv("UTK_RAW_REPORT", "1")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"exec", "return 42;"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit = %d (stderr: %s)", code, stderr.String())
+	}
+	if stdout.String() != body {
+		t.Fatalf("stdout = %q, want the raw envelope", stdout.String())
+	}
+}

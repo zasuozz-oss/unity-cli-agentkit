@@ -270,6 +270,7 @@ and that you write only there is lost. Put it in the kit's
 own `skills/` (or the project's `CLAUDE.md`), and say where it went.
 
 ## Editor lock & jobs
+Several agents on one Editor → `utk queue submit` (skill `utk-editor-queue`): one compile/reload, everyone's test runs back to back and one Play session per cycle. `unity-job.sh` remains for a single long exclusive job; give it `--kind` (telemetry) and `--gate <repo>` for compile/test work.
 One Editor serves one job at a time. Take it through the bundled scripts instead of calling `utk` raw from several agents:
 `<this skill>/scripts/unity-job.sh <owner> <log> [--task ID] [--timeout S] -- <cmd...>` takes the FIFO lock (`scripts/unity-lock.sh`), turns autotick on, runs `<cmd>` under a wall-clock limit (default 900 s), turns autotick off, releases the lock and writes `<log>` ending in `RESULT: PASS|FAIL|TIMEOUT`. Run it in the background (Bash `run_in_background`) so you keep working while it queues. Before queueing, check offline first: `skills/utk-test-runner/scripts/unity-test.sh offline <repo>`; submit the job only on `COMPILE OK`.
 - `UNITY_LOCK_NAME`: one lock per Editor (set it per worktree Editor); `UNITY_LOCK_DIR` default `~/.unity-cli-agentkit/locks`.

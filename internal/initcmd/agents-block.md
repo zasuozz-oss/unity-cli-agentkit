@@ -43,18 +43,19 @@ Hard rules (full details live in the skills listed below):
 - **Auto Refresh is off:** when you do need the Editor, run `utk editor
   refresh` once for the whole batch. It waits for the compile and answers with
   its errors (exit non-zero when it failed) — no `recompile_status` poll, no
-  follow-up `utk console`.
+  follow-up `utk console` — on a shared Editor use `utk queue submit compile` instead of a direct `refresh`.
 - **Run only your own tests:** `utk run_tests --mode editor --filter
   <YourTestClass>` (or a `[Category]` with `--filter_type category`). Never a
   namespace, the game assembly or no filter: that is the whole 1000+ test suite,
   minutes long, and it blocks every other agent on the Editor; `utk run_tests`
   refuses it. Only when the user asks for the full suite:
-  `UTK_FULL_SUITE=1 utk run_tests ...`.
+  `UTK_FULL_SUITE=1 utk run_tests ...`. On a shared Editor: `utk queue submit test --filter <YourTestClass>`.
 - **Batch, don't fan out:** the editor runs every command serialized on one
   main thread, and each `utk` call costs a model round-trip. One `utk exec`
   snippet that loops beats N per-object calls; use at most ONE Unity-touching
   (sub)agent at a time; keep the Unity window focused (a backgrounded editor
   is throttled).
+- **Shared Editor = queue, not lock-and-wait:** compile, tests, scene edits and screenshots go through `utk queue submit` (skill `utk-editor-queue`); prefab edits and queries go direct. `unity-job.sh` jobs carry `--kind` and, for compile/test work, `--gate <repo>`.
 - **Round-trips are the cost, not tool time.** Measured over two weeks of
   sessions: tools ran for 2.7h, the model spent 23h between tool calls (~22s
   each), and a quarter of all tool turns were lone `grep`/`sed`/`cat`/Read

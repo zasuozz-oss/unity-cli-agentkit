@@ -353,6 +353,7 @@ Bundled skills — the `utk-*` ones cover **driving** the Editor:
 | `utk-exec-query` | Inspecting/changing runtime state via `utk exec` |
 | `utk-test-runner` | Verifying compilation + running EditMode/PlayMode tests; bundled `scripts/unity-test.sh`: `offline` (dotnet build, ~3 s, no Editor at all; `--tests [<filter>]` also runs EditMode tests that do not need Unity, optionally only yours) is the first step, then `compile`/`editmode`/`playmode` (batchmode, Editor closed) only when offline cannot cover it |
 | `utk-playmode-driving` | Driving Play mode unattended: autotick, `wait_for`, frame stepping, Game view size |
+| `utk-editor-queue` | Several agents on one Editor: `utk queue submit compile\|test\|scene\|shot` merges compile/reload, tests and Play sessions into one cycle for everyone; `utk queue status\|stats` inspect it |
 | `utk-asset-edit` | Editing assets as text (renames, field tweaks, GUID swaps) vs going through the editor |
 | `utk-asset-import` | Bringing external files (images, audio, models) into the project by path — never base64 |
 | `utk-profiling` | Measuring lag/hitches/FPS drops with the Profiler through `utk` (Editor Play or a dev build on device) instead of guessing; `scripts/prof_spikes.cs` breaks the slowest frames down by marker |
@@ -394,6 +395,12 @@ agent picks them up by topic:
 
 Installing them through the plugin / `utk init` replaces `ag-unity init` —
 running both installs the same skill names twice over, so pick one.
+
+### Multiple agents / one Editor
+
+Several agents sharing one Editor should go through `utk queue submit compile|test|scene|shot ...` instead of taking the lock themselves.
+One coordinator per Editor coalesces one compile/reload, everyone's test runs back to back and one Play session per cycle; `utk queue status|stats` shows the queue and wait/hold percentiles.
+See the `utk-editor-queue` skill; for a single long exclusive job use `unity-job.sh` with `--kind` and `--gate <repo>`.
 
 ## Migration from utk v1
 
