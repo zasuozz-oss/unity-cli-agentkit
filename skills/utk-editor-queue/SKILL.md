@@ -41,7 +41,7 @@ Rules:
 - The coordinator keeps the Editor healthy between cycles: it destroys the fonts
   Unity leaks at each reload (`utk editor gc`), and when domain reloads have
   become several times slower than at startup and nobody is queued it restarts
-  the Editor (`utk editor restart`, ~1-2 min, never while playing or with
+  the Editor (`utk editor restart`, 15-20 s on a warm project, never while playing or with
   unsaved scenes). `UTK_NO_AUTO_RESTART=1` turns the restart off.
 
 ## Inspect
