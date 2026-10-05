@@ -39,6 +39,13 @@ stderr are preserved. Run ` + "`utk list`" + ` for the ~150 official tools.
   utk test_status         poll results after PlayMode tests hand off
   utk test [args…]        official batchmode runner; needs the Editor CLOSED
                           same summary as run_tests, read from its NUnit report
+  utk queue submit compile | test --filter <Class> [--mode editmode|playmode]
+                 | scene --cmd '<utk args>'|--script <f.sh> [--est-seconds N] [--timeout S]
+                 | shot --script <f.sh> --scene <path> [--isolated] [--edit]
+                          shared-Editor queue: one compile/reload, everyone's test
+                          run and one Play session per cycle for every agent;
+                          blocks until YOUR result (exit = its exit)
+  utk queue status | stats [--since 24h] | serve
   utk editor refresh|play|pause|stop|status
                           recompile (waits for it; exit 1 on compile errors)
                           and play-mode control

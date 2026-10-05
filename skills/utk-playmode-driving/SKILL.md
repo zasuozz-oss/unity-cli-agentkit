@@ -10,6 +10,8 @@ the Editor is not focused, the agent waits on a wall clock instead of a state,
 or it calls an API that belongs to the other mode. Each one below cost real
 sessions dozens of retries.
 
+Shared Editor: put the steps below in a script and `utk queue submit shot --script <f.sh> --scene <path>`; the queue enters Play once for everyone and reloads your scene before your script (`UNITY_IN_PLAY=1` is set: do not play/stop yourself).
+
 ## An unfocused Editor barely runs frames
 
 The OS throttles a backgrounded Unity, so in play mode the player loop crawls:

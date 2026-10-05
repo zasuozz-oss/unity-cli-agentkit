@@ -54,11 +54,22 @@ func TestForeignTest(t *testing.T) {
 		{"no filter: anything is ours", "", "", ""},
 		{"assembly: not in the report", "Mine", "assembly", ""},
 		{"category: not in the report", "Mine", "category", ""},
+		{"filter of only separators: anything is ours", " ; ", "", ""},
+		{"merged filter, both ours", "MineTests;OtherTests", "", ""},
+		{"merged filter, one foreign", "MineTests;Nope", "", "G.OtherTests.Two"},
 	}
 	for _, c := range cases {
 		if got := foreignTest([]byte(report), c.filter, c.filterType); got != c.want {
 			t.Errorf("%s: foreignTest = %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+func TestSplitTestFilter(t *testing.T) {
+	got := splitTestFilter(" A ;b;;C")
+	want := []string{"a", "b", "c"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("splitTestFilter = %v, want %v", got, want)
 	}
 }
 
@@ -93,6 +104,7 @@ func TestWholeSuite(t *testing.T) {
 		{[]string{"--filter", "EchoPals.Tests"}, true},
 		{[]string{"--filter=EchoPals.Tests.EditMode"}, true},
 		{[]string{"--filter_type", "Assembly", "--filter", "EchoPals.Tests.EditMode"}, true},
+		{[]string{"--filter", "Game.Tests;Foo"}, true}, // one namespace part drags the suite into a merged run
 		{[]string{"--mode", "editor", "--filter", "CatchGameTests"}, false},
 		{[]string{"--filter", "EchoPals.Tests.CatchGameTests"}, false},
 		{[]string{"--filter_type", "category", "--filter", "Fast"}, false},

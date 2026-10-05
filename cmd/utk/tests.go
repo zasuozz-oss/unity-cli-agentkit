@@ -152,10 +152,30 @@ func wholeSuite(args []string) string {
 		return "no --filter: that is the whole suite"
 	case strings.EqualFold(findFlag(args, "--filter_type"), "assembly"):
 		return "--filter_type assembly runs the whole test assembly"
-	case namespaceFilter.MatchString(filter):
-		return "--filter " + filter + " is a namespace and matches every test"
+	}
+	// Each "A;B" part runs on its own, so one namespace part is the whole
+	// suite — and through the queue it lands in everyone's merged run. Split
+	// raw, not with splitTestFilter: namespaceFilter is case-sensitive.
+	for _, part := range strings.Split(filter, ";") {
+		if part = strings.TrimSpace(part); namespaceFilter.MatchString(part) {
+			return "--filter " + part + " is a namespace and matches every test"
+		}
 	}
 	return ""
+}
+
+// splitTestFilter breaks a Unity Test Framework name filter ("A;B", as the
+// framework's -testFilter takes it) into lowercase parts. The coordinator
+// merges every agent's filter into one run this way, so a report may
+// legitimately hold tests from several parts.
+func splitTestFilter(filter string) []string {
+	var out []string
+	for _, p := range strings.Split(filter, ";") {
+		if p = strings.ToLower(strings.TrimSpace(p)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // foreignTest returns a test in the report that the run's own testName filter
@@ -172,9 +192,20 @@ func foreignTest(payload []byte, filter, filterType string) string {
 	if !ok {
 		return ""
 	}
-	f := strings.ToLower(filter)
+	parts := splitTestFilter(filter)
+	if len(parts) == 0 {
+		return ""
+	}
 	for _, r := range d.Results {
-		if !strings.Contains(strings.ToLower(r.FullName), f) {
+		name := strings.ToLower(r.FullName)
+		ours := false
+		for _, p := range parts {
+			if strings.Contains(name, p) {
+				ours = true
+				break
+			}
+		}
+		if !ours {
 			return r.FullName
 		}
 	}

@@ -66,6 +66,8 @@ Details and gotchas: `references/headless-testing.md`.
 
 ## Run tests
 
+Shared Editor (another agent may be on it)? `utk queue submit test --filter <Class>` instead — same output, run back to back with everyone else's under one compile/reload. Direct `utk run_tests` only when you are alone on the Editor.
+
 ```bash
 utk run_tests --mode editor --filter <YourTestClass>  # after offline, for what needs the Editor
 utk run_tests --mode playmode               # PlayMode (triggers a domain reload)
