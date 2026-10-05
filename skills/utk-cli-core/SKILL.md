@@ -72,7 +72,8 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   domain reload, so after a day a reload takes 30 s instead of 3 and calls
   time out around it. `utk editor status` prints `the Editor has degraded …`
   when its own log shows that; `utk editor restart` then quits, relaunches and
-  waits until ready (~1-2 min). It refuses while the Editor is playing or
+  waits until ready (15-20 s measured on a warm project; minutes if it has
+  to reimport). It refuses while the Editor is playing or
   holds unsaved scenes; `--force` is for a hung Editor only. Calls from other
   agents during the restart wait for the new Editor instead of failing.
   The project-side lever: every Enter Play is one more domain reload unless
