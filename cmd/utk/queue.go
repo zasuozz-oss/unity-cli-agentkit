@@ -49,17 +49,42 @@ type queueResult struct {
 	RunS      int      `json:"run_s"`
 }
 
-// queueDir is one directory per Editor, named like the lock so a worktree
-// Editor with its own UNITY_LOCK_NAME gets its own queue.
+// editorLockName names the Editor lock (and the queue) after the project
+// folder: every agent on one project shares it whatever its shell exports,
+// and a worktree Editor (Echo-Pals-a4) gets its own. UNITY_LOCK_NAME does not
+// apply to the Editor lock: one agent's UI lock inherited by another's job
+// used to put the two on different locks for the same Editor.
+// ponytail: two projects with the same folder name share a lock; rename one.
+func editorLockName(dir string) string {
+	root := projectRootOf(dir)
+	if root == "" {
+		return "unity-editor"
+	}
+	name := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			return r + 'a' - 'A'
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			return r
+		}
+		return '-'
+	}, filepath.Base(root))
+	for strings.Contains(name, "--") {
+		name = strings.ReplaceAll(name, "--", "-")
+	}
+	return strings.Trim(name, "-")
+}
+
+// lockEnv pins the lock name for unity-lock.sh, which otherwise derives it
+// from its own cwd.
+func lockEnv(cwd string) []string { return []string{"UNITY_LOCK_NAME=" + editorLockName(cwd)} }
+
+// queueDir is one directory per Editor, named like its lock.
 func queueDir() string {
 	if d := os.Getenv("UTK_QUEUE_DIR"); d != "" {
 		return d
 	}
-	name := os.Getenv("UNITY_LOCK_NAME")
-	if name == "" {
-		name = "unity-editor"
-	}
-	return filepath.Join(kitHome(), "queue", name)
+	return filepath.Join(kitHome(), "queue", editorLockName(localProjectRoot()))
 }
 
 func newRequestID(now time.Time) string {

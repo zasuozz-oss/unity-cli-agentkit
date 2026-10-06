@@ -32,12 +32,12 @@ func editorAnswers(cwd string) bool {
 }
 
 func acquireEditorLock(cwd string) bool {
-	_, code := queueExec(cwd, 61*time.Minute, nil, "bash", lockScript(), "acquire", "coordinator", "3600")
+	_, code := queueExec(cwd, 61*time.Minute, lockEnv(cwd), "bash", lockScript(), "acquire", "coordinator", "3600")
 	return code == 0
 }
 
 func releaseEditorLock(cwd string) {
-	queueExec(cwd, time.Minute, nil, "bash", lockScript(), "release", "coordinator")
+	queueExec(cwd, time.Minute, lockEnv(cwd), "bash", lockScript(), "release", "coordinator")
 }
 
 // serveOnce runs one cycle over whatever is pending. It returns how many
@@ -141,7 +141,7 @@ func maybeRestart(dir, cwd string, stderr io.Writer) {
 	if !bad {
 		return
 	}
-	if _, code := queueExec(cwd, time.Minute, nil, "bash", lockScript(), "acquire", "coordinator", "5"); code != 0 {
+	if _, code := queueExec(cwd, time.Minute, lockEnv(cwd), "bash", lockScript(), "acquire", "coordinator", "5"); code != 0 {
 		return // somebody is using the Editor outside the queue; try after the next cycle
 	}
 	defer releaseEditorLock(cwd)
@@ -175,7 +175,7 @@ func (c *cycle) holdEditor(cwd string, editorOK bool) {
 			case <-done:
 				return
 			case <-t.C:
-				queueExec(cwd, time.Minute, nil, "bash", lockScript(), "touch", "coordinator")
+				queueExec(cwd, time.Minute, lockEnv(cwd), "bash", lockScript(), "touch", "coordinator")
 			}
 		}
 	}()

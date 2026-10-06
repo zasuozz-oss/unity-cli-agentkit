@@ -121,6 +121,11 @@ func localProjectRoot() string {
 	if err != nil {
 		return ""
 	}
+	return projectRootOf(dir)
+}
+
+// projectRootOf walks up from dir to the Unity project that contains it.
+func projectRootOf(dir string) string {
 	for {
 		if initcmd.DetectUnityProject(dir) {
 			return dir

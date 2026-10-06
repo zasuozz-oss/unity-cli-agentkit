@@ -56,5 +56,6 @@ Rules:
 ## Inspect
 `utk queue status` (pending, the running job and its deadline, the Editor lock holder
 and pid, a `HUNG:` line), `utk queue stats --since 24h` (wait/hold per kind),
-`~/.unity-cli-agentkit/queue/<editor>/serve.log`. The coordinator starts on the first
-`submit`; `UNITY_LOCK_NAME` picks the Editor, like unity-lock.sh.
+`~/.unity-cli-agentkit/queue/<project>/serve.log`. The coordinator starts on the first
+`submit`; the queue and the lock are named after the project folder (`echo-pals`,
+`echo-pals-a4` for a worktree), like unity-lock.sh — `UNITY_LOCK_NAME` does not pick them.

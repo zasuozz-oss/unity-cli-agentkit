@@ -5,16 +5,30 @@
 #   unity-lock.sh touch|release <owner> ; status ; want <owner> ; queue
 #   unity-lock.sh yield <owner>   between steps of a long job: if anyone waits, release, let them
 #                                 run, then queue again (FIFO); else keep the lock ("kept")
+#   unity-lock.sh name            the lock name in use (see below)
 #   unity-lock.sh --selftest
 # The holder pid is recorded only when the caller sets UNITY_LOCK_PID (unity-job.sh: itself; the
 # queue coordinator: itself). A lock taken by hand from a shell (an Editor freeze) records none:
 # its acquiring process exits at once, and the lock must not read "holder gone" for that.
 # Each waiter drops a ticket <epoch>-<pid>-<owner> in <name>.queue/; the oldest live ticket
 # goes next, and a ticket whose process is gone is dropped. `want` still jumps the queue.
-# UNITY_LOCK_NAME picks the Editor (one lock per worktree Editor), UNITY_LOCK_DIR the folder
-# (default ~/.unity-cli-agentkit/locks), UNITY_LOCK_POLL the poll interval in seconds (default 2).
+# The lock is named after the Unity project folder that contains the cwd (Echo-Pals -> echo-pals,
+# Echo-Pals-a4 -> echo-pals-a4; "unity-editor" outside a project; UNITY_PROJECT_PATH overrides the
+# cwd), so every agent on one project shares it and a worktree Editor gets its own. UNITY_LOCK_NAME
+# names some other lock (a UI lock) - utk and unity-job.sh pin it to the project name for the Editor.
+# UNITY_LOCK_DIR is the folder (default ~/.unity-cli-agentkit/locks), UNITY_LOCK_POLL the poll
+# interval in seconds (default 2).
 set -u
-N=${UNITY_LOCK_NAME:-unity-editor}
+project_lock_name() { # same rule as utk's editorLockName
+  local d=${UNITY_PROJECT_PATH:-$PWD}
+  while [ "$d" != / ] && [ -n "$d" ]; do
+    if [ -d "$d/Assets" ] && [ -d "$d/ProjectSettings" ]; then
+      basename "$d" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'; return; fi
+    d=$(dirname "$d")
+  done
+  echo unity-editor
+}
+N=${UNITY_LOCK_NAME:-$(project_lock_name)}
 D=${UNITY_LOCK_DIR:-$HOME/.unity-cli-agentkit/locks}
 L=$D/$N.lock.d W=$D/$N.want Q=$D/$N.queue
 mkdir -p "$Q"
@@ -37,7 +51,7 @@ holder_gone() {
 selftest() {
   local tmp; tmp=$(mktemp -d)
   export UNITY_LOCK_DIR=$tmp UNITY_LOCK_POLL=0.1 UNITY_LOCK_NAME=t
-  local me=$0
+  local me; me=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
   "$me" acquire A 5 >/dev/null || { echo "FAIL: A"; exit 1; }
   "$me" acquire B 10 > "$tmp/b.out" & local pb=$!
   sleep 0.5
@@ -68,6 +82,11 @@ selftest() {
   UNITY_LOCK_PID=$$ "$me" yield E 2>/dev/null | grep -q acquired || { echo "FAIL: yield did not come back"; exit 1; }
   wait $pf; [ "$(cut -d' ' -f1 < "$tmp/t.lock.d/owner")" = E ] || { echo "FAIL: E not back after yield"; exit 1; }
   "$me" release E >/dev/null
+  # the default name is the project folder, from anywhere inside the project
+  mkdir -p "$tmp/My Game_2/Assets/Scripts" "$tmp/My Game_2/ProjectSettings"
+  [ "$(cd "$tmp/My Game_2/Assets/Scripts" && env -u UNITY_LOCK_NAME "$me" name)" = my-game-2 ] || { echo "FAIL: project name"; exit 1; }
+  [ "$(cd "$tmp" && env -u UNITY_LOCK_NAME UNITY_PROJECT_PATH="$tmp/My Game_2" "$me" name)" = my-game-2 ] || { echo "FAIL: UNITY_PROJECT_PATH"; exit 1; }
+  [ "$(cd "$tmp" && env -u UNITY_LOCK_NAME "$me" name)" = unity-editor ] || { echo "FAIL: default outside a project"; exit 1; }
   rm -rf "$tmp"; echo "unity-lock selftest OK"
 }
 
@@ -101,6 +120,7 @@ touch) [ "$(cut -d' ' -f1 "$L/owner" 2>/dev/null)" = "$2" ] && touch "$L" && ech
 release) if [ "$(cut -d' ' -f1 "$L/owner" 2>/dev/null)" = "$2" ]; then rm -rf "$L"; echo released; else echo "not owner ($(cat "$L/owner" 2>/dev/null))"; exit 1; fi ;;
 status) if [ -d "$L" ] && holder_gone; then echo "free (holder $(cut -d' ' -f1 "$L/owner") pid $(cat "$L/pid") gone)"
         else o=$(cat "$L/owner" 2>/dev/null) && echo "$o$( [ -f "$L/pid" ] && echo " pid $(cat "$L/pid")")" || echo free; fi ;;
+name) echo "$N" ;;
 queue) i=0; for t in $(ls "$Q" | sort); do i=$((i+1)); echo "$i ${t#*-*-} waited $(( $(date +%s) - 10#${t%%-*} ))s"; done ;;
-*) echo "usage: $0 acquire|touch|release|yield <owner> | status | want <owner> | queue | --selftest"; exit 2 ;;
+*) echo "usage: $0 acquire|touch|release|yield <owner> | status | want <owner> | queue | name | --selftest"; exit 2 ;;
 esac

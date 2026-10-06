@@ -162,10 +162,7 @@ func lockHolder() (owner string, pid int) {
 	if d == "" {
 		d = filepath.Join(os.Getenv("HOME"), ".unity-cli-agentkit", "locks")
 	}
-	name := os.Getenv("UNITY_LOCK_NAME")
-	if name == "" {
-		name = "unity-editor"
-	}
+	name := editorLockName(localProjectRoot())
 	b, err := os.ReadFile(filepath.Join(d, name+".lock.d", "owner"))
 	if err != nil {
 		return "", 0
@@ -259,7 +256,7 @@ func (w *watchdog) tick(cwd string, stderr io.Writer) bool {
 		}
 		return true
 	}
-	if _, code := queueExec(cwd, time.Minute, nil, "bash", lockScript(), "acquire", "coordinator", "5"); code != 0 {
+	if _, code := queueExec(cwd, time.Minute, lockEnv(cwd), "bash", lockScript(), "acquire", "coordinator", "5"); code != 0 {
 		return false // somebody took the Editor in between; look again next tick
 	}
 	restartHung(w.dir, cwd, "watchdog: silent for "+now.Sub(w.hungSince).Round(time.Second).String(), stderr)
