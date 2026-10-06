@@ -23,7 +23,7 @@ var exit = os.Exit
 // run holds all routing/exec/print logic, taking argv (without the program
 // name) and injectable stdout/stderr so it is testable without a real `unity`
 // binary on PATH driving os.Stdout directly.
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdout, stderr io.Writer) (code int) {
 	// Split utk's own flags across the whole argv, not just the part after the
 	// verb: `utk --raw console` otherwise took --raw as the command name and ran
 	// `unity command --raw console`, which fails with an unrelated error.
@@ -114,8 +114,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "  It holds the shared Editor for minutes and every other agent waits behind it.")
 			fmt.Fprintln(stderr, "  Run only your own tests: unity-test.sh offline <repo> --tests <YourTestClass>,")
 			fmt.Fprintln(stderr, "  then utk run_tests --mode editor --filter <YourTestClass>.")
-			fmt.Fprintln(stderr, "  Full suite only when the user asked for it: UTK_FULL_SUITE=1 utk run_tests ...")
+			fmt.Fprintln(stderr, "  Full suite only when the user asked for it, quoting them: UTK_FULL_SUITE='user: <what they asked>' utk run_tests ...")
 			return 2
+		}
+		if os.Getenv("UTK_FULL_SUITE") != "" && findFlag(rest, "--filter") == "" {
+			started := time.Now()
+			defer func() { logFullSuite(map[bool]string{true: "PASS", false: "FAIL"}[code == 0], time.Since(started)) }()
 		}
 		// The pipeline drops [Explicit] tests even when a filter names them. A
 		// filter naming test methods is the explicit request NUnit means by the
