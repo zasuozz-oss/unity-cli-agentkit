@@ -371,3 +371,40 @@ func TestRun_RawReportEnvKeepsEnvelope(t *testing.T) {
 		t.Fatalf("stdout = %q, want the raw envelope", stdout.String())
 	}
 }
+
+// `utk editor restart --help` ran a real restart of the shared Editor (2026-10-06): --help / -h must answer
+// before any verb that acts. Nothing may reach exec (queueExec fatals on any call), the queue dir or `unity`.
+func TestHelpNeverRunsAVerb(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // kitHome: the queue dir lives under it
+	t.Setenv("UNITY_LOCK_OWNER", "")
+	t.Setenv("UNITY_QUEUE_REQUEST", "")
+	calls := fakeExec(t, fakeAnswers{})
+	local := [][]string{
+		{"init"}, {"queue"}, {"queue", "submit"}, {"queue", "status"}, {"queue", "cancel"}, {"queue", "serve"},
+		{"editor", "wait"}, {"editor", "restart"}, {"editor", "play"}, {"editor", "stop"},
+	}
+	for _, flag := range []string{"--help", "-h"} {
+		for _, args := range local {
+			var stdout, stderr bytes.Buffer
+			if code := run(append(append([]string{}, args...), flag), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "usage:") {
+				t.Errorf("utk %s %s: exit %d, stdout %.80q, stderr %.80q", strings.Join(args, " "), flag, code, stdout.String(), stderr.String())
+			}
+		}
+		// a proxy verb answers with the tool's schema through `unity list`, never by running itself
+		bin, argvFile := fakeUnity(t, readFixture(t, "list_full.json"), 0)
+		t.Setenv("UTK_UNITY_BIN", bin)
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"exec", flag}, &stdout, &stderr); code != 0 || stdout.Len() == 0 {
+			t.Errorf("utk exec %s: exit %d, stdout %.80q", flag, code, stdout.String())
+		}
+		if b, _ := os.ReadFile(argvFile); strings.Contains(string(b), "eval --json") || strings.Contains(string(b), "command eval") {
+			t.Errorf("utk exec %s reached the eval tool: %s", flag, b)
+		}
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("a subcommand ran under --help: %v", *calls)
+	}
+	if es, _ := os.ReadDir(os.Getenv("HOME")); len(es) != 0 {
+		t.Errorf("--help wrote into the kit home: %v", es)
+	}
+}
