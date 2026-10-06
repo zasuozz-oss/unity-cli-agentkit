@@ -23,8 +23,10 @@
 #   ~/.unity-cli-agentkit/offline-runner; needs NUnitLite 3.14 from NuGet).
 #   One build at a time per repo (mkdir lock): msbuild writes Temp/obj. Unity itself compiles in
 #   Library/Bee, so an open Editor is fine.
-#   Limit: csproj files only list the .cs files the Editor knew at its last project sync; a new .cs
-#   is reported NOT-IN-CSPROJ and is compiled only by the next Editor job (utk editor refresh).
+#   csproj files only list the .cs files the Editor knew at its last project sync: a new .cs is added to the csproj of its
+#   assembly for this build (NEW-CS <assembly> <file>, nearest .asmdef, else Assembly-CSharp[-Editor]); one whose assembly has
+#   no csproj is reported NOT-IN-CSPROJ and is compiled only by the next Editor job (utk editor refresh). A .cs deleted since
+#   the sync still fails the build (its csproj lists it): refresh once.
 # Unity binary: $UNITY_BIN if set, else the project's pinned version under
 # /Applications/Unity/Hub/Editor (macOS Hub default), else any installed.
 # Timeout: $UNITY_TIMEOUT seconds (default 1200) via timeout/gtimeout if present.
@@ -104,18 +106,46 @@ offline_mode() { # <repo> [--tests [<filter>]]
     for i in $(seq 1 120); do mkdir "$LOCK" 2>/dev/null && break; sleep 1; done
     [ -d "$LOCK" ] || { echo "unity-test offline: lock busy for 120 s ($LOCK)"; return 2; }
     trap 'rmdir "$LOCK" 2>/dev/null' EXIT
-    local OUT rc
-    OUT=$(perl -e 'alarm 300; exec @ARGV' dotnet build "$SLN" -nologo -v q 2>&1)
-    rc=$?
-    echo "$OUT" | grep -E "error CS|error NETSDK|error MSB" | sed -E 's/ \[[^]]*\]$//' | sort -u
-    # .cs files under Assets that no csproj lists: new since the last Editor project sync
-    git ls-files -co --exclude-standard -- 'Assets/*.cs' | python3 -c '
-import sys, glob, re
+    # .cs files under Assets that no csproj lists are new since the last Editor project sync (the Editor writes the csproj
+    # files, and only on refresh). Compile them anyway: an MSBuild targets file adds each one to the csproj of its assembly
+    # (nearest .asmdef, else Assembly-CSharp[-Editor]), so code that already uses a new file does not fail the gate.
+    # A file whose assembly has no csproj stays NOT-IN-CSPROJ (compiled only by the next Editor job).
+    local NEWT="$PWD/Temp/utk-new-cs.targets" NEWLINES
+    rm -f "$NEWT"
+    NEWLINES=$(git ls-files -co --exclude-standard -- 'Assets/*.cs' | python3 -c '
+import sys, os, glob, re, json
 listed = set()
 for p in glob.glob("*.csproj"):
-    listed.update(m.replace("\\\\", "/") for m in re.findall(r"<Compile Include=\"([^\"]+)\"", open(p, encoding="utf-8-sig").read()))
+    listed.update(m.replace("\\", "/") for m in re.findall(r"<Compile Include=\"([^\"]+)\"", open(p, encoding="utf-8-sig").read()))
+def project(f):
+    d = os.path.dirname(f)
+    while d.startswith("Assets"):
+        for a in glob.glob(d + "/*.asmdef"):
+            try: return json.load(open(a, encoding="utf-8-sig"))["name"]
+            except Exception: return None
+        d = os.path.dirname(d)
+    return "Assembly-CSharp-Editor" if "/Editor/" in f else "Assembly-CSharp"
+add = {}
 for f in sys.stdin.read().split("\n"):
-    if f and f not in listed and "/Editor Default Resources/" not in f: print("NOT-IN-CSPROJ", f)'
+    if not f or f in listed or "/Editor Default Resources/" in f: continue
+    p = project(f)
+    if p and os.path.exists(p + ".csproj"): add.setdefault(p, []).append(f)
+    else: print("NOT-IN-CSPROJ", f)
+if add:
+    with open("Temp/utk-new-cs.targets", "w") as t:
+        t.write("<Project>\n")
+        for p, fs in add.items():
+            t.write("  <ItemGroup Condition=\"\x27$(MSBuildProjectName)\x27==\x27%s\x27\">\n" % p)
+            for f in fs:
+                t.write("    <Compile Include=\"%s\" />\n" % f.replace("&", "&amp;")); print("NEW-CS", p, f)
+            t.write("  </ItemGroup>\n")
+        t.write("</Project>\n")')
+    [ -n "$NEWLINES" ] && echo "$NEWLINES"
+    local OUT rc XP=""
+    [ -f "$NEWT" ] && XP="-p:CustomAfterMicrosoftCommonTargets=$NEWT"
+    OUT=$(perl -e 'alarm 300; exec @ARGV' dotnet build "$SLN" -nologo -v q $XP 2>&1)
+    rc=$?
+    echo "$OUT" | grep -E "error CS|error NETSDK|error MSB" | sed -E 's/ \[[^]]*\]$//' | sort -u
     [ $rc = 0 ] || { echo "COMPILE FAILED (exit $rc)"; return 1; }
     echo "COMPILE OK"
     [ "${2:-}" = --tests ] && { offline_tests "${3:-}"; return $?; }
@@ -134,7 +164,12 @@ offline_selftest() {
     local O; O=$("$0" offline "$T"); [ $? = 1 ] || { echo "selftest FAIL: bad build exit"; return 1; }
     echo "$O" | grep -q 'error CS0029' && echo "$O" | grep -q 'NOT-IN-CSPROJ Assets/B.cs' || { echo "selftest FAIL: output"; echo "$O"; return 1; }
     [ ! -d "$T/Temp/unity-compile.lock.d" ] || { echo "selftest FAIL: lock left"; return 1; }
-    echo "offline selftest ok (3 checks)"
+    # a new file in an assembly that has a csproj is compiled by the gate, not just reported
+    mkdir -p "$T/Assets/Mod"; echo '{"name":"G"}' > "$T/Assets/Mod/G.asmdef"
+    echo 'class A { int F() => 1; int H() => new C().V; }' > "$T/Assets/A.cs"; echo 'class C { public int V = 2; }' > "$T/Assets/Mod/C.cs"
+    O=$("$0" offline "$T"); echo "$O" | grep -q '^COMPILE OK$' && echo "$O" | grep -q 'NEW-CS G Assets/Mod/C.cs' || { echo "selftest FAIL: a new .cs in a known assembly must compile in the gate"; echo "$O"; return 1; }
+    rm -f "$T/Assets/Mod/C.cs" "$T/Assets/Mod/G.asmdef"; echo 'class A { int F() => 1; }' > "$T/Assets/A.cs"
+    echo "offline selftest ok (4 checks)"
     # --tests: one pass, one fake native-Unity failure (needs Editor), one real failure
     local nu; nu=$(ls "$HOME"/.nuget/packages/nunit/3.14.0/lib/netstandard2.0/nunit.framework.dll 2>/dev/null)
     [ -n "$nu" ] || { echo "offline --tests selftest SKIP: NUnit 3.14 not in the NuGet cache"; return 0; }
