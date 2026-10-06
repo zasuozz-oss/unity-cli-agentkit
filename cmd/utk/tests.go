@@ -150,10 +150,15 @@ var namespaceFilter = regexp.MustCompile(`\.Tests(\.[A-Za-z]+Mode)?\.?$`)
 // wholeSuite says why a run_tests would run the whole suite, or "" when it is
 // scoped. 1000+ tests hold a shared Editor for minutes and every other agent
 // on it waits behind them; agents ran it anyway despite the skill's rule.
-// UTK_FULL_SUITE=1 lets it through when the user asked for the full suite.
+// UTK_FULL_SUITE lets it through when it quotes the user's request: a bare
+// "1" was set by agents on their own authority (23 full runs in one task),
+// and a quoted sentence is what a reviewer finds in the telemetry afterwards.
 func wholeSuite(args []string) string {
-	if os.Getenv("UTK_FULL_SUITE") == "1" {
-		return ""
+	if hatch := os.Getenv("UTK_FULL_SUITE"); hatch != "" {
+		if fullSuiteQuoted(hatch) {
+			return ""
+		}
+		return "UTK_FULL_SUITE=" + hatch + " is not a reason: quote the user (UTK_FULL_SUITE='user: <what they asked>')"
 	}
 	filter := findFlag(args, "--filter")
 	switch {
@@ -171,6 +176,21 @@ func wholeSuite(args []string) string {
 		}
 	}
 	return ""
+}
+
+// fullSuiteQuoted: the hatch holds words, not a flag value.
+// ponytail: three words is the bar; an agent can still invent them, but it
+// has to write a lie into the telemetry to do so.
+func fullSuiteQuoted(v string) bool { return len(strings.Fields(v)) >= 3 }
+
+// logFullSuite leaves the run and the quoted request in the telemetry.
+func logFullSuite(result string, held time.Duration) {
+	owner := os.Getenv("UNITY_LOCK_OWNER")
+	if owner == "" {
+		owner = "pid-" + strconv.Itoa(os.Getpid())
+	}
+	appendTelemetry(telemetryEntry{TS: time.Now().UTC().Format(time.RFC3339), Owner: owner, Task: os.Getenv("UTK_FULL_SUITE"),
+		Kind: "full-suite", HoldS: int(held.Seconds()), Result: result, Via: "run_tests"})
 }
 
 // splitTestFilter breaks a Unity Test Framework name filter ("A;B", as the
@@ -328,8 +348,11 @@ func runSnippet(snippet, project string) (string, int) {
 // class or a namespace, so each names a test method or a case (a SetName'd
 // TestCaseSource case is no method, hence the check runs this way round). Only
 // then does utk send include_explicit: `--filter QuestBotTests` must not start
-// the [Explicit] sweeps in that class. Fails closed (false) when the Editor
-// cannot answer.
+// the [Explicit] sweeps in that class. One exception: a class that is itself
+// [Explicit] (a Category("Slow") fixture kept out of the full run) and holds
+// no [Explicit] member of its own — naming it is the explicit request, and
+// without include_explicit the run would be empty. Fails closed (false) when
+// the Editor cannot answer.
 func filterNamesOnlyMethods(filter, project string) bool {
 	var parts []string
 	for _, p := range strings.Split(filter, ";") {
@@ -354,8 +377,16 @@ foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies()) {
   System.Type[] ts; try { ts = asm.GetTypes(); } catch { continue; }
   foreach (var t in ts) {
     var full = (t.FullName ?? t.Name).Replace('+', '.'); var ns = t.Namespace ?? "";
-    foreach (var p in parts)
-      if (full == p || full.EndsWith("." + p) || ns == p || ns.EndsWith("." + p) || ns.StartsWith(p + ".")) return "METHODS:no " + p;
+    foreach (var p in parts) {
+      if (full == p || full.EndsWith("." + p)) {
+        bool cls = false, member = false;
+        foreach (var a in t.GetCustomAttributes(false)) if (a.GetType().Name == "ExplicitAttribute") cls = true;
+        foreach (var m in t.GetMethods()) foreach (var a in m.GetCustomAttributes(false)) if (a.GetType().Name == "ExplicitAttribute") member = true;
+        if (cls && !member) continue;
+        return "METHODS:no " + p;
+      }
+      if (ns == p || ns.EndsWith("." + p) || ns.StartsWith(p + ".")) return "METHODS:no " + p;
+    }
   }
 }
 return "METHODS:yes";`

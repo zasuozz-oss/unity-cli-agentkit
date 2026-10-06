@@ -217,7 +217,7 @@ The repo is its own plugin marketplace. In Claude Code:
   assembly`, or a `<Game>.Tests` namespace filter), which holds a shared
   Editor for minutes. `utk run_tests`
   itself refuses the same runs for every agent (exit 2). When the user asked
-  for the full suite, prefix the command with `UTK_FULL_SUITE=1`.
+  for the full suite, prefix the command with `UTK_FULL_SUITE='user: <what they asked>'` (a bare `=1` is refused; the run is logged to the telemetry).
 - Updates: the plugin has no pinned version, so every commit on the default
   branch is a new version. Third-party marketplaces do not auto-update by
   default: run `claude plugin update unity-cli-agentkit@unity-cli-agentkit`,

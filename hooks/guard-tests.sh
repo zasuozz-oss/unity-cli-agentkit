@@ -3,8 +3,9 @@
 # `utk run_tests` (or `unity command run_tests`, which skips utk's own
 # check) that would run the whole suite (no --filter, an assembly
 # filter, or a `<Game>.Tests` namespace). 1000+ tests hold the shared Editor
-# for minutes and every other agent on it waits. `UTK_FULL_SUITE=1 utk
-# run_tests ...` lets the full run through when the user asked for it.
+# for minutes and every other agent on it waits. `UTK_FULL_SUITE='user: <what
+# they asked>' utk run_tests ...` lets the full run through when the user asked
+# for it; a bare `=1` does not (agents set it on their own authority).
 set -u
 cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 [ -n "$cmd" ] || exit 0
@@ -13,7 +14,11 @@ reason=""
 for sep in '&&' '||' ';' '|'; do cmd=${cmd//"$sep"/$'\n'}; done
 while IFS= read -r seg; do
   [[ $seg =~ (^|[/[:space:]])(utk|unity[[:space:]]+command([[:space:]]+[^[:space:]]+)*)[[:space:]]+run_tests($|[[:space:]]) ]] || continue
-  [[ $seg == *UTK_FULL_SUITE=1* ]] && continue
+  if [[ $seg =~ UTK_FULL_SUITE=(\"([^\"]*)\"|\'([^\']*)\'|([^[:space:]]*)) ]]; then
+    hatch=${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}; set -- $hatch
+    [ $# -ge 3 ] && continue
+    reason="UTK_FULL_SUITE=$hatch is not a reason: quote the user"; break
+  fi
   filter=""
   [[ $seg =~ --filter[=[:space:]]+[\"\']?([^\"\'[:space:]]+) ]] && filter=${BASH_REMATCH[1]}
   if [ -z "$filter" ]; then
@@ -26,7 +31,7 @@ while IFS= read -r seg; do
   [ -n "$reason" ] && break
 done <<< "$cmd"
 [ -n "$reason" ] || exit 0
-msg="Blocked run_tests ($reason). It holds the shared Unity Editor for minutes and every other agent waits behind it. Run only your own tests: first \`unity-test.sh offline <repo> --tests <YourTestClass>\` (utk-test-runner skill, no Editor), then \`utk run_tests --mode editor --filter <YourTestClass>\`. Run the full suite only when the user asked for it: prefix the command with UTK_FULL_SUITE=1."
+msg="Blocked run_tests ($reason). It holds the shared Unity Editor for minutes and every other agent waits behind it. Run only your own tests: first \`unity-test.sh offline <repo> --tests <YourTestClass>\` (utk-test-runner skill, no Editor), then \`utk run_tests --mode editor --filter <YourTestClass>\`. Run the full suite only when the user asked for it, quoting them: prefix the command with UTK_FULL_SUITE='user: <what they asked>'."
 msg="${msg//\\/\\\\}"
 msg="${msg//\"/\\\"}"
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$msg"

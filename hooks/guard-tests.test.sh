@@ -17,7 +17,10 @@ check deny  'utk run_tests --filter A; utk run_tests'
 check allow 'utk run_tests --mode editor --filter CatchGameTests'
 check allow 'utk run_tests --filter=CatchGameTests --timeout 300'
 check allow "utk run_tests --filter 'EchoPals.Tests.CatchGameTests'"
-check allow 'UTK_FULL_SUITE=1 utk run_tests --mode editor'
+check deny  'UTK_FULL_SUITE=1 utk run_tests --mode editor'
+check deny  'UTK_FULL_SUITE=yes utk run_tests --mode editor'
+check allow "UTK_FULL_SUITE='user: run the whole suite before release' utk run_tests --mode editor"
+check allow 'UTK_FULL_SUITE="user asked for the full suite" utk run_tests --mode editor'
 check deny  'unity command run_tests --mode editor --json'
 check deny  'unity command --project-path /p run_tests --filter EchoPals.Tests'
 check allow 'unity command run_tests --mode editor --filter CatchGameTests'

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -93,7 +94,7 @@ func TestRun_RunTestsRejectsAnotherRunsReport(t *testing.T) {
 }
 
 // A run that covers the whole suite holds a shared Editor for minutes, so it is
-// refused before anything reaches Unity unless UTK_FULL_SUITE=1.
+// refused before anything reaches Unity unless UTK_FULL_SUITE quotes the user.
 func TestWholeSuite(t *testing.T) {
 	cases := []struct {
 		args  []string
@@ -114,9 +115,36 @@ func TestWholeSuite(t *testing.T) {
 			t.Errorf("wholeSuite(%q) whole = %v, want %v", c.args, got, c.whole)
 		}
 	}
-	t.Setenv("UTK_FULL_SUITE", "1")
+	// The hatch is the user's words, not a flag an agent can set on its own
+	// authority: "1" opened the whole suite 23 times in one task.
+	for _, v := range []string{"1", "true", "yes", "full"} {
+		t.Setenv("UTK_FULL_SUITE", v)
+		if why := wholeSuite(nil); !strings.Contains(why, "quote the user") {
+			t.Errorf("UTK_FULL_SUITE=%s: %q", v, why)
+		}
+	}
+	t.Setenv("UTK_FULL_SUITE", "user: run the whole suite before the release")
 	if why := wholeSuite(nil); why != "" {
-		t.Errorf("UTK_FULL_SUITE=1 still refused: %s", why)
+		t.Errorf("a quoted request still refused: %s", why)
+	}
+}
+
+// Every full run leaves a telemetry line naming who ran it and the user's
+// words, so `utk queue stats` and a reviewer can see it.
+func TestRun_FullSuiteIsLoggedToTelemetry(t *testing.T) {
+	bin, _ := fakeUnity(t, `{"success":true,"data":{"result":{"status":"completed","summary":{"total":1,"passed":1,"failed":0}}}}`, 0)
+	t.Setenv("UTK_UNITY_BIN", bin)
+	t.Setenv("UTK_TELEMETRY", t.TempDir()+"/t.jsonl")
+	t.Setenv("UTK_FULL_SUITE", "user: full suite before release")
+	t.Setenv("UNITY_LOCK_OWNER", "qa")
+	var stdout, stderr bytes.Buffer
+	run([]string{"run_tests", "--mode", "editor"}, &stdout, &stderr)
+	b, _ := os.ReadFile(telemetryPath())
+	line := string(b)
+	for _, want := range []string{`"owner":"qa"`, `"kind":"full-suite"`, `"task":"user: full suite before release"`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("telemetry %q lacks %s", line, want)
+		}
 	}
 }
 
@@ -126,7 +154,7 @@ func TestRun_RunTestsRefusesWholeSuite(t *testing.T) {
 	if code := run([]string{"run_tests", "--mode", "editor"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("exit = %d, want 2; stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "UTK_FULL_SUITE=1") {
+	if !strings.Contains(stderr.String(), "UTK_FULL_SUITE='user: ") {
 		t.Errorf("stderr does not name the escape hatch: %s", stderr.String())
 	}
 }

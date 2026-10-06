@@ -22,10 +22,15 @@ to the Editor through `utk` only for what offline cannot cover.
    `[Category]`). Never a namespace (`<Game>.Tests` matches every test),
    `--filter_type assembly` on the game's test assembly, or no filter — that is
    the whole suite (1000+ tests, 1–3 min in the Editor) and every other agent
-   on that Editor waits behind it. The full suite is for the end of a task, by
-   one agent, or when the user asks. `utk run_tests` refuses those runs (exit
-   2); `UTK_FULL_SUITE=1 utk run_tests ...` gets past it, and only when the
-   user asked for the full suite.
+   on that Editor waits behind it. The full suite is the user's call, never a
+   hand-off step of your own: a task's close-out is the user (or the QA role
+   they ask) running it once. `utk run_tests` refuses those runs (exit 2);
+   `UTK_FULL_SUITE='user: <what they asked>' utk run_tests ...` gets past it —
+   the value must quote the user (a bare `=1` is refused) and every full run is
+   logged to the telemetry with those words (`utk queue stats`).
+   A fixture too slow for every full run is `[Explicit("slow"), Category("Slow")]`:
+   the full run skips it, `--filter <ThatClass>` or `--filter_type category --filter
+   Slow` runs it (utk adds `--include_explicit` for a class that is itself [Explicit]).
 4. **Write tests that can run offline.** Measured on a 1055-test game: 95 ran
    offline, 958 needed the Editor because they touch `GameObject`, scenes,
    `JsonUtility` and other native Unity code. Put rules and numbers in plain C#

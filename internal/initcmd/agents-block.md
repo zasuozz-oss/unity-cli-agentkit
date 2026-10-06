@@ -48,8 +48,8 @@ Hard rules (full details live in the skills listed below):
   <YourTestClass>` (or a `[Category]` with `--filter_type category`). Never a
   namespace, the game assembly or no filter: that is the whole 1000+ test suite,
   minutes long, and it blocks every other agent on the Editor; `utk run_tests`
-  refuses it. Only when the user asks for the full suite:
-  `UTK_FULL_SUITE=1 utk run_tests ...`. On a shared Editor: `utk queue submit test --filter <YourTestClass>`.
+  refuses it. Only when the user asks for the full suite, quoting them (a bare `=1` is refused, the run is logged):
+  `UTK_FULL_SUITE='user: <what they asked>' utk run_tests ...`. On a shared Editor: `utk queue submit test --filter <YourTestClass>`.
 - **Batch, don't fan out:** the editor runs every command serialized on one
   main thread, and each `utk` call costs a model round-trip. One `utk exec`
   snippet that loops beats N per-object calls; use at most ONE Unity-touching
