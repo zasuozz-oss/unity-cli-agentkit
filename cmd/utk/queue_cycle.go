@@ -476,7 +476,7 @@ func (c *cycle) runShots() {
 }
 
 func (c *cycle) playSession(reqs []queueRequest) {
-	if out, code := queueExec(c.cwd, 2*time.Minute, nil, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {
+	if out, code := queueExec(c.cwd, 2*time.Minute, []string{"UNITY_LOCK_OWNER=coordinator"}, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {
 		for _, r := range reqs {
 			c.finish(r, "FAIL", 1, "could not enter Play mode\n"+out)
 		}
@@ -495,7 +495,7 @@ func (c *cycle) playSession(reqs []queueRequest) {
 			// the session for whoever is left (spec §7), on an Editor that answers.
 			c.freeEditor(false, r.ID+" shot "+strconvItoa(code))
 			queueExec(c.cwd, time.Minute, nil, utkSelf(), "editor", "stop")
-			if out, code := queueExec(c.cwd, 2*time.Minute, nil, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {
+			if out, code := queueExec(c.cwd, 2*time.Minute, []string{"UNITY_LOCK_OWNER=coordinator"}, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {
 				// No result would mean the server re-queues them forever.
 				for _, rest := range reqs[i+1:] {
 					c.finish(rest, "FAIL", 1, "could not re-enter Play mode after a timed-out script\n"+out)

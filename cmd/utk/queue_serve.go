@@ -74,6 +74,12 @@ func serveOnce(dir string, stderr io.Writer) int {
 			return 0
 		}
 		blocked("EDITOR_BLOCKED: " + notice + "\n")
+	} else if n, _ := playUnowned(dir, cwd, time.Now()); n != "" {
+		// Play nobody owns: run nothing, never stop it. Jobs stay queued until their wait budget ends BLOCKED.
+		blockedByPlay(reqs, n, &results, time.Now())
+		if len(results) == 0 {
+			return 0
+		}
 	} else {
 		c := newCycle(dir, reqs, stderr)
 		editorOK := c.runGateAndRefreshBeforeLock()

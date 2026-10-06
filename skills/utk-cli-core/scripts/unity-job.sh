@@ -9,6 +9,7 @@
 # `$UNITY_JOB_BOARD status <task> wait-editor|doing` and `$UNITY_JOB_BOARD lockwait <task> <secs>`;
 # unset = no board calls. Skips acquiring when $UNITY_LOCK_OWNER
 # already holds the lock. UNITY_JOB_DRY=1 skips utk (selftest).
+# A Play outside the lock ends BLOCKED (exit 75, UNITY_JOB_PLAY_WAIT s, default 300): the job never stops it.
 # No utk command closes a modal dialog (checked `utk list` 2026-10-04): a dialog ends as TIMEOUT; game-studio tools/unity-dialog.sh list|click sees and presses it.
 # Run it with the Bash tool's run_in_background so the agent keeps coding while it waits.
 # --gate <repo> runs `unity-test.sh offline <repo>` before queueing; a failing build exits 1 without taking the lock.
@@ -59,6 +60,14 @@ selftest() {
   sleep 1; kill -KILL $pj; wait $pj 2>/dev/null; sleep 0.5; local m1; m1=$(stat -f %m "$tmp/locks/t.lock.d")
   sleep 1.5; [ "$(stat -f %m "$tmp/locks/t.lock.d")" = "$m1" ] || { echo "FAIL: orphan toucher keeps lock fresh"; exit 1; }
   pkill -f "sleep 30" 2>/dev/null; rm -rf "$tmp/locks/t.lock.d"
+  # unowned Play: BLOCKED, exit 75, the command never ran
+  printf '#!/bin/bash\necho PLAY-UNOWNED since 20:19:16 local; exit 75\n' > "$tmp/pcb"; chmod +x "$tmp/pcb"
+  UNITY_JOB_PLAY_CHECK="$tmp/pcb" UNITY_JOB_PLAY_WAIT=1 UNITY_JOB_PLAY_POLL=0.2 "$0" own "$tmp/pb.log" -- touch "$tmp/ran" >/dev/null; rc=$?
+  [ $rc = 75 ] && grep -q '^RESULT: BLOCKED (PLAY-UNOWNED since' "$tmp/pb.log" && [ ! -e "$tmp/ran" ] || { echo "FAIL: unowned Play must block (rc=$rc)"; exit 1; }
+  # Play ends while it waits: the job runs
+  printf '#!/bin/bash\n[ -e "%s/n" ] && exit 0; touch "%s/n"; echo PLAY-UNOWNED; exit 75\n' "$tmp" "$tmp" > "$tmp/pc"; chmod +x "$tmp/pc"
+  UNITY_JOB_PLAY_CHECK="$tmp/pc" UNITY_JOB_PLAY_WAIT=5 UNITY_JOB_PLAY_POLL=0.2 "$0" own "$tmp/pr.log" -- true >/dev/null
+  grep -q '^RESULT: PASS$' "$tmp/pr.log" || { echo "FAIL: job must run once the Play ended"; exit 1; }
   rm -rf "$tmp"; echo "unity-job selftest OK"
 }
 
@@ -80,6 +89,20 @@ if [ -n "$GATE" ]; then
   if ! gout=$("${gate_cmd[@]}" "$GATE" 2>&1); then
     echo "$gout"; echo "GATE_FAILED: offline build did not pass (see output above); fix and resubmit - no Editor time used"; exit 1
   fi
+fi
+
+# A Play no utk job owns (GUI, remote desktop, a direct call) breaks every command: do not run, wait for it to end,
+# then BLOCKED (exit 75). Never stop it. Checked before the lock: holding the lock would make that Play look owned.
+if [ -n "${UNITY_JOB_PLAY_CHECK:-}" ] || [ "${UNITY_JOB_DRY:-}" != 1 ]; then
+  PC=${UNITY_JOB_PLAY_CHECK:-utk queue play-check}; pw0=$SECONDS
+  while pout=$($PC 2>/dev/null); pc=$?; [ $pc = 75 ]; do
+    if [ $((SECONDS - pw0)) -ge "${UNITY_JOB_PLAY_WAIT:-300}" ]; then
+      mkdir -p "$(dirname "$LOGF")"
+      { echo "# $(date '+%F %T') owner=$OWNER task=${TASK:-none}"; echo "RESULT: BLOCKED ($pout)"; } > "$LOGF"
+      echo "RESULT: BLOCKED ($pout) ($LOGF)"; exit 75
+    fi
+    sleep "${UNITY_JOB_PLAY_POLL:-10}"
+  done
 fi
 
 GOT=0
