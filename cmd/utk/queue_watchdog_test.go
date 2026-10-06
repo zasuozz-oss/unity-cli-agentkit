@@ -217,3 +217,72 @@ func calledLines(lines []string, prefix string) int {
 	}
 	return n
 }
+
+// A hung main thread inside a native modal (the "scene changed on disk" NSAlert) is a DIALOG, not a hang:
+// no restart, a DIALOG line in the notice, the known alert gets its safe button.
+func TestWatchdogReportsAModalInsteadOfRestarting(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UNITY_LOCK_DIR", dir)
+	t.Setenv("UTK_TELEMETRY", dir+"/t.jsonl")
+	t.Setenv("UTK_DIALOG_CMD", "/x/unity-dialog.sh")
+	modal := true
+	var calls []string
+	old := queueExec
+	queueExec = func(cwd string, timeout time.Duration, env []string, name string, args ...string) (string, int) {
+		n, a := fakeLine(name, args)
+		line := n + " " + strings.Join(a, " ")
+		calls = append(calls, line)
+		switch {
+		case strings.HasPrefix(line, "utk exec "+probeSnippet):
+			if modal {
+				return "Main thread operation timed out after 20000ms", 1
+			}
+		case n == "pgrep":
+			return "4242\n", 0
+		case n == "sample":
+			os.WriteFile(a[len(a)-1], []byte("Thread_1 main\n  -[NSAlert runModal]\n  EditorSceneManager::HandleOpenScenesChangeOnDisk\n"), 0o644)
+		case strings.HasSuffix(line, "list"):
+			return "[Scene Changed] The scene(s) have been changed on disk\n  buttons: Reload | Ignore\n", 0
+		case strings.Contains(line, "click Reload"):
+			modal = false
+			return "clicked: Reload | x\n", 0
+		}
+		return "ok\n", 0
+	}
+	t.Cleanup(func() { queueExec = old })
+	clock := time.Date(2026, 10, 6, 4, 0, 0, 0, time.UTC)
+	w := newWatchdog(dir)
+	w.now = func() time.Time { return clock }
+	var stderr bytes.Buffer
+	w.tick("/p", &stderr)
+	n := hungNotice(dir)
+	if !strings.HasPrefix(n, "DIALOG:") || !strings.Contains(n, "Reload | Ignore") || !strings.Contains(n, "pressed Reload") {
+		t.Fatalf("notice = %q", n)
+	}
+	if calledLines(calls, "utk editor restart --force") != 0 {
+		t.Fatalf("restarted under a dialog: %v", calls)
+	}
+	clock = clock.Add(time.Minute) // Reload landed: the main thread answers, the notice is stale
+	w.tick("/p", io.Discard)
+	if hungNotice(dir) != "" {
+		t.Error("DIALOG notice not cleared once the Editor answers")
+	}
+}
+
+func TestDialogCmdFallsBackToTheConfigFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("UTK_DIALOG_CMD", "")
+	if dialogCmd() != "" {
+		t.Fatal("no env, no file: want empty")
+	}
+	os.MkdirAll(filepath.Join(home, ".unity-cli-agentkit"), 0o755)
+	os.WriteFile(filepath.Join(home, ".unity-cli-agentkit", "dialog-cmd"), []byte("/x/unity-dialog.sh\n"), 0o644)
+	if got := dialogCmd(); got != "/x/unity-dialog.sh" {
+		t.Fatalf("file = %q", got)
+	}
+	t.Setenv("UTK_DIALOG_CMD", "/env/d.sh")
+	if dialogCmd() != "/env/d.sh" {
+		t.Fatal("env must win")
+	}
+}
