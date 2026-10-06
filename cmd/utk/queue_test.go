@@ -932,3 +932,33 @@ func TestSubmitReturnsWhenItsQueuedRequestIsCancelled(t *testing.T) {
 		t.Fatal("submit kept waiting for a cancelled request")
 	}
 }
+
+// A .cs the Editor has not synced into the csproj yet (new file, code already using it) must not fail the gate:
+// unity-test.sh offline adds it to the csproj of its asmdef for that build (senior's IslandChunk.cs, 2026-10-07).
+func TestGateCompilesANewCsFileTheCsprojDoesNotListYet(t *testing.T) {
+	if _, err := exec.LookPath("dotnet"); err != nil {
+		t.Skip("dotnet not installed")
+	}
+	skills, _ := filepath.Abs("../../skills")
+	t.Setenv("UTK_SKILLS_DIR", skills)
+	p := t.TempDir()
+	w := func(rel, s string) {
+		t.Helper()
+		os.MkdirAll(filepath.Dir(filepath.Join(p, rel)), 0o755)
+		if err := os.WriteFile(filepath.Join(p, rel), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w("G.csproj", `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup><ItemGroup><Compile Include="Assets/A.cs" /></ItemGroup></Project>`)
+	w("G.slnx", `<Solution><Project Path="G.csproj" /></Solution>`)
+	w("Assets/A.cs", "class A { int H() => new C().V; }\n") // uses C, which the csproj does not know
+	w("Assets/Mod/G.asmdef", `{"name":"G"}`)
+	w("Assets/Mod/C.cs", "class C { public int V = 2; }\n")
+	if out, err := exec.Command("git", "-C", p, "init", "-q").CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	ok, out := gateCompile(p)
+	if !ok || !strings.Contains(out, "NEW-CS G Assets/Mod/C.cs") {
+		t.Fatalf("gate failed on a new .cs: ok=%v\n%s", ok, out)
+	}
+}
