@@ -115,9 +115,13 @@ func (c *cycle) runGateAndRefreshBeforeLock() bool {
 	return true
 }
 
-// runEditorRefresh is the refresh half, under the lock.
+// runEditorRefresh is the refresh half, under the lock. It first waits out
+// whatever the Editor is still doing (the import a chain left behind): a
+// refresh sent into that timed out at 30 s and failed every request as a
+// compile error that was not one.
 func (c *cycle) runEditorRefresh() bool {
 	compiles, tests := c.byKind("compile"), c.byKind("test")
+	queueExec(c.cwd, 6*time.Minute, nil, utkSelf(), "editor", "wait", "--timeout", "300")
 	ok, out := refreshEditor(c.cwd)
 	if !ok {
 		io.WriteString(c.stderr, "utk queue: WARN gate-mismatch: dotnet build passed but the Editor compile failed\n")
@@ -273,8 +277,9 @@ func (c *cycle) runTestsMode(mode string, reqs []queueRequest) {
 		raw, code := queueExec(c.cwd, queueTestTimeout, rawReportEnv, utkSelf(), "run_tests", "--mode", utkTestMode(mode), "--filter", strings.Join(parts, ";"))
 		if code == 124 {
 			// A timeout would just burn another 25 minutes per filter.
+			note := c.freeEditor(true, "merged test run timed out")
 			for _, r := range reqs {
-				c.finish(r, "TIMEOUT", 124, raw+"\nTIMEOUT: merged test run exceeded 25 min\n")
+				c.finish(r, "TIMEOUT", 124, raw+"\nTIMEOUT: merged test run exceeded 25 min\n"+note)
 			}
 			return
 		}
@@ -286,12 +291,21 @@ func (c *cycle) runTestsMode(mode string, reqs []queueRequest) {
 		io.WriteString(c.stderr, "utk queue: merged run failed ("+errCode+"); rerunning each filter alone\n")
 	}
 	for _, r := range reqs {
-		raw, code := queueExec(c.cwd, queueTestTimeout, rawReportEnv, utkSelf(), "run_tests", "--mode", utkTestMode(mode), "--filter", r.Args.Filter)
-		if code == 124 {
-			c.finish(r, "TIMEOUT", 124, raw+"\nTIMEOUT: test run exceeded 25 min\n")
+		// The request's own --timeout and the submitter's liveness both stop the
+		// run: the client side alone was killed before, and the Editor ran on.
+		c.setRunning(r)
+		raw, code := queueJobExec(c.cwd, jobTimeout(r), rawReportEnv, c.gone(r), utkSelf(), "run_tests", "--mode", utkTestMode(mode), "--filter", r.Args.Filter)
+		results, errCode, ok := decodeTestReport([]byte(raw))
+		if code == 124 || code == 130 || errCode == "TEST_RUN_TIMEOUT" {
+			status, exit := c.stopStatus(r, code)
+			note := c.freeEditor(true, r.ID+" "+status)
+			why := "its --timeout " + jobTimeout(r).String() + " ran out"
+			if exit == 130 {
+				why = "nobody waits for it any more"
+			}
+			c.finish(r, status, exit, raw+"\n"+status+": test run stopped, "+why+"\n"+note)
 			continue
 		}
-		results, errCode, ok := decodeTestReport([]byte(raw))
 		if !ok {
 			if errCode == "" {
 				errCode = "NO_REPORT"
@@ -337,6 +351,10 @@ func (c *cycle) runSceneJobs() {
 	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].Args.EstS < jobs[j].Args.EstS })
 	for _, r := range jobs {
 		out, code := c.runJobCommand(r, []string{"UNITY_LOCK_OWNER=coordinator", "UNITY_QUEUE_REQUEST=" + r.ID})
+		if code == 124 || code == 130 {
+			// The killed client leaves its exec running on the Editor's main thread.
+			out += c.freeEditor(false, r.ID+" scene "+strconvItoa(code))
+		}
 		c.finishCommand(r, out, code)
 	}
 }
@@ -344,20 +362,44 @@ func (c *cycle) runSceneJobs() {
 // runJobCommand runs a request's --cmd (utk argv) or --script (bash) with its
 // own wall clock.
 func (c *cycle) runJobCommand(r queueRequest, env []string) (string, int) {
-	to := time.Duration(r.Args.TimeoutS) * time.Second
-	if to <= 0 {
-		to = 300 * time.Second
-	}
-	// Withdrawn (`utk queue cancel`, a --wait that ran out) or orphaned (the
-	// submitter died): the job would hold the Editor for a result nobody reads.
-	gone := func() bool {
-		_, err := os.Stat(filepath.Join(c.dir, "requests", r.ID+".json"))
-		return err != nil || !pidAlive(r.PID)
-	}
+	c.setRunning(r)
 	if r.Args.Script != "" {
-		return queueJobExec(c.cwd, to, env, gone, "bash", r.Args.Script)
+		return queueJobExec(c.cwd, jobTimeout(r), env, c.gone(r), "bash", r.Args.Script)
 	}
-	return queueJobExec(c.cwd, to, env, gone, utkSelf(), r.Args.Cmd...)
+	return queueJobExec(c.cwd, jobTimeout(r), env, c.gone(r), utkSelf(), r.Args.Cmd...)
+}
+
+func jobTimeout(r queueRequest) time.Duration {
+	if r.Args.TimeoutS <= 0 {
+		return 300 * time.Second
+	}
+	return time.Duration(r.Args.TimeoutS) * time.Second
+}
+
+// gone says nobody waits for the job any more: withdrawn (`utk queue cancel`,
+// a --wait that ran out) or orphaned (the submitter died). The job would hold
+// the Editor for a result nobody reads.
+func (c *cycle) gone(r queueRequest) func() bool {
+	return func() bool {
+		_, err := os.Stat(filepath.Join(c.dir, "requests", r.ID+".json"))
+		return err != nil || submitterDead(r)
+	}
+}
+
+// submitterDead: the submitting process is gone (a request without a pid has
+// none to watch).
+func submitterDead(r queueRequest) bool { return r.PID > 0 && !pidAlive(r.PID) }
+
+// stopStatus names why a job was stopped: its own timeout, its submitter's
+// death, or a withdrawal.
+func (c *cycle) stopStatus(r queueRequest, code int) (string, int) {
+	switch {
+	case code != 130:
+		return "TIMEOUT", 124
+	case submitterDead(r):
+		return "ORPHANED", 130
+	}
+	return "CANCELLED", 130
 }
 
 // finishCommand maps a command's exit onto a result status and collects
@@ -370,10 +412,9 @@ func (c *cycle) finishCommand(r queueRequest, out string, code int) {
 		}
 	}
 	switch {
-	case code == 124:
-		c.finish(r, "TIMEOUT", 124, out, arts...)
-	case code == 130:
-		c.finish(r, "CANCELLED", 130, out, arts...)
+	case code == 124 || code == 130:
+		status, exit := c.stopStatus(r, code)
+		c.finish(r, status, exit, out, arts...)
 	case code == 0:
 		c.finish(r, "PASS", 0, out, arts...)
 	default:
@@ -426,6 +467,9 @@ func (c *cycle) runShots() {
 	}
 	for _, r := range edit {
 		out, code := c.runJobCommand(r, []string{"UNITY_LOCK_OWNER=coordinator", "UNITY_QUEUE_REQUEST=" + r.ID})
+		if code == 124 || code == 130 {
+			out += c.freeEditor(false, r.ID+" shot "+strconvItoa(code))
+		}
 		c.finishCommand(r, out, code)
 	}
 }
@@ -447,7 +491,8 @@ func (c *cycle) playSession(reqs []queueRequest) {
 		c.finishCommand(r, out, code)
 		if code == 124 || code == 130 {
 			// A hung or stopped script may have left Play in an unknown state: restart
-			// the session for whoever is left (spec §7).
+			// the session for whoever is left (spec §7), on an Editor that answers.
+			c.freeEditor(false, r.ID+" shot "+strconvItoa(code))
 			queueExec(c.cwd, time.Minute, nil, utkSelf(), "editor", "stop")
 			if out, code := queueExec(c.cwd, 2*time.Minute, nil, utkSelf(), "editor", "play"); code != 0 || !c.waitPlaying() {
 				// No result would mean the server re-queues them forever.

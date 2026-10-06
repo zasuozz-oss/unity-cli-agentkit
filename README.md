@@ -405,6 +405,7 @@ running both installs the same skill names twice over, so pick one.
 Several agents sharing one Editor should go through `utk queue submit compile|test|scene|shot ...` instead of taking the lock themselves.
 One coordinator per Editor coalesces one compile/reload, everyone's test runs back to back and one Play session per cycle; `utk queue status|stats` shows the queue and wait/hold percentiles.
 See the `utk-editor-queue` skill; for a single long exclusive job use `unity-job.sh` with `--kind` and `--gate <repo>`.
+A job past its `--timeout` or whose submitter died is stopped on the Editor side too (`cancel_tests`, else a forced restart), and a watchdog restarts an Editor whose main thread stays silent for 5 minutes, once; a second hang within 30 minutes is left to a human with a `HUNG:` line in `utk queue status`.
 
 ## Migration from utk v1
 

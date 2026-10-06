@@ -95,6 +95,12 @@ func mapVerb(cmd string, args []string) (unityArgs []string, kind, only string) 
 		if cmd == "run_tests" && !hasFlag(args, "--async_tests") {
 			out = append(out, "--async_tests", "true")
 		}
+		// The pipeline drops [Explicit] tests even when a filter names them, so a
+		// tool kept out of the full suite with [Explicit] could not be run at all.
+		// A named filter is the explicit request NUnit means by the attribute.
+		if cmd == "run_tests" && findFlag(args, "--filter") != "" && !hasFlag(args, "--include_explicit") {
+			out = append(out, "--include_explicit", "true")
+		}
 		return out, "tests", ""
 	case "reserialize":
 		// One eval for the whole batch — the skills document `utk reserialize

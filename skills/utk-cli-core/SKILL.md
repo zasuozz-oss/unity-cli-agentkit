@@ -54,6 +54,7 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   (up to 30 min, exit non-zero unless `Succeeded`); the completed report drops
   the per-file inventory. Start it with `run_in_background: true` — the harness
   notifies you when it exits. `--wait false` gives the raw async hand-off.
+- **`[Explicit]` tests** run when `--filter` names them (utk adds `include_explicit`); a whole-suite `run_tests` skips them and refuses, naming the tests, while any `Category("Tool")` test lacks `[Explicit]`.
 - **`--timeout` units differ per verb.** `exec` takes **milliseconds**
   (default 60000; under 1000 is refused as a likely seconds value).
   `run_tests --timeout` takes **seconds** (default 300). `run_script` uses
@@ -296,4 +297,5 @@ One Editor serves one job at a time. Take it through the bundled scripts instead
 - `UNITY_LOCK_NAME`: one lock per Editor (set it per worktree Editor); `UNITY_LOCK_DIR` default `~/.unity-cli-agentkit/locks`.
 - `UNITY_JOB_NO_TICK=1`: leave autotick alone (a batchmode job must not toggle another Editor's autotick).
 - `UNITY_JOB_BOARD="<cmd>"`: optional task-board command prefix; with `--task ID` it receives `status <ID> wait-editor|doing` and `lockwait <ID> <secs>`. Unset = no board calls.
-- A stale lock (untouched 15 min) is removed automatically; `unity-lock.sh status|queue|want <owner>` inspect or jump the queue.
+- A lock whose holder process is gone is freed by the next acquire (the lock records `UNITY_LOCK_PID`, which unity-job.sh sets to itself); a lock untouched 15 min is stale and removed too. `unity-lock.sh status|queue|want <owner>` inspect or jump the queue.
+- A multi-step `<cmd>` calls `"$UNITY_JOB_YIELD"` between steps (`unity-lock.sh yield <owner>`): if someone queued, they get the Editor for one turn and the lock comes back FIFO, so a short job waits one step, not the whole chain.
