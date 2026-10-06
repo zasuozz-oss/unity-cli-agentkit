@@ -217,6 +217,9 @@ func runServe(dir string, stdout, stderr io.Writer) int {
 	}
 	lock := filepath.Join(dir, "serve.lock.d")
 	pidFile := filepath.Join(dir, "serve.pid")
+	// The Editor lock records this pid: if the coordinator dies holding it,
+	// the next acquire frees it instead of waiting out the 15-min stale rule.
+	os.Setenv("UNITY_LOCK_PID", strconv.Itoa(os.Getpid()))
 	if err := os.Mkdir(lock, 0o755); err != nil {
 		b, _ := os.ReadFile(pidFile)
 		if pidIsServe(atoi(string(b))) {

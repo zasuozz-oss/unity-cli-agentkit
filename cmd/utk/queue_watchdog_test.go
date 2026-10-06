@@ -97,6 +97,11 @@ func TestWatchdogLeavesALiveLockHolderAlone(t *testing.T) {
 	if busyElsewhere() {
 		t.Fatal("dead holder still counts as busy")
 	}
+	// taken by hand (an Editor freeze): no pid recorded -> busy, never restarted under it
+	os.Remove(filepath.Join(dir, "unity-editor.lock.d", "pid"))
+	if !busyElsewhere() {
+		t.Fatal("a pid-less (hand-taken) lock must count as busy")
+	}
 }
 
 // A test job honors its own --timeout; when it ends from the client side the
@@ -163,14 +168,28 @@ func TestPollTestsBudgetIsAFailureNotAnEmptyReport(t *testing.T) {
 	}
 }
 
-func TestRunTestsNamedFilterIncludesExplicit(t *testing.T) {
-	named, _, _ := mapVerb("run_tests", []string{"--mode", "editor", "--filter", "A.B"})
-	if got := strings.Join(named, " "); !strings.Contains(got, "--include_explicit true") {
-		t.Fatalf("named filter: %s", got)
+// include_explicit only when every filter part names a method or case: a
+// class filter must not start the [Explicit] sweeps in that class.
+func TestRunTestsExplicitOnlyForMethodFilters(t *testing.T) {
+	if got, _, _ := mapVerb("run_tests", []string{"--mode", "editor", "--filter", "A.B"}); strings.Contains(strings.Join(got, " "), "include_explicit") {
+		t.Fatalf("mapVerb decides include_explicit on its own: %v", got)
 	}
-	whole, _, _ := mapVerb("run_tests", []string{"--mode", "editor"})
-	if got := strings.Join(whole, " "); strings.Contains(got, "include_explicit") {
-		t.Fatalf("whole suite must keep skipping [Explicit]: %s", got)
+	var snippet string
+	answer, code := "METHODS:yes", 0
+	old := editorSnippet
+	editorSnippet = func(s, project string) (string, int) { snippet = s; return answer, code }
+	t.Cleanup(func() { editorSnippet = old })
+	if !filterNamesOnlyMethods("QuestBotTests.QuestBot_TradeSweep_m1_on; X.Y(1,\"a\")", "") ||
+		!strings.Contains(snippet, `new[] { "QuestBotTests.QuestBot_TradeSweep_m1_on","X.Y" }`) {
+		t.Fatalf("parts not passed as C# literals without case args: %s", snippet)
+	}
+	answer = "METHODS:no QuestBotTests"
+	if filterNamesOnlyMethods("QuestBotTests", "") {
+		t.Fatal("a class filter included [Explicit] tests")
+	}
+	answer, code = "", 1
+	if filterNamesOnlyMethods("A.B", "") {
+		t.Fatal("must fail closed when the Editor cannot answer")
 	}
 }
 

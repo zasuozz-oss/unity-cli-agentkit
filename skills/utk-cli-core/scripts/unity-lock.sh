@@ -6,8 +6,9 @@
 #   unity-lock.sh yield <owner>   between steps of a long job: if anyone waits, release, let them
 #                                 run, then queue again (FIFO); else keep the lock ("kept")
 #   unity-lock.sh --selftest
-# The holder pid is UNITY_LOCK_PID, else the caller ($PPID): unity-job.sh exports its own pid so
-# the lock lives as long as the job, not as long as whichever child called acquire.
+# The holder pid is recorded only when the caller sets UNITY_LOCK_PID (unity-job.sh: itself; the
+# queue coordinator: itself). A lock taken by hand from a shell (an Editor freeze) records none:
+# its acquiring process exits at once, and the lock must not read "holder gone" for that.
 # Each waiter drops a ticket <epoch>-<pid>-<owner> in <name>.queue/; the oldest live ticket
 # goes next, and a ticket whose process is gone is dropped. `want` still jumps the queue.
 # UNITY_LOCK_NAME picks the Editor (one lock per worktree Editor), UNITY_LOCK_DIR the folder
@@ -50,6 +51,10 @@ selftest() {
   wait $pc; [ "$(cut -d' ' -f1 < "$tmp/t.lock.d/owner")" = C ] || { echo "FAIL: C not next"; exit 1; }
   "$me" release C >/dev/null
   [ "$("$me" status)" = free ] || { echo "FAIL: not free"; exit 1; }
+  # taken by hand (no UNITY_LOCK_PID): no pid, never "holder gone", the next acquire waits
+  ( unset UNITY_LOCK_PID; "$me" acquire H 5 >/dev/null ); [ ! -f "$tmp/t.lock.d/pid" ] || { echo "FAIL: pid recorded for a hand-taken lock"; exit 1; }
+  "$me" acquire I 1 >/dev/null 2>&1 && { echo "FAIL: a hand-taken lock was freed"; exit 1; }
+  "$me" release H >/dev/null
   # a lock whose holder died is free at once, not after 15 min
   sleep 60 & local ph=$!
   UNITY_LOCK_PID=$ph "$me" acquire D 5 >/dev/null; [ "$("$me" status | cut -d' ' -f1)" = D ] || { echo "FAIL: D"; exit 1; }
@@ -84,13 +89,13 @@ acquire)
     sleep "${UNITY_LOCK_POLL:-2}"
   done
   [ "$want" = "$OWNER" ] && rm -f "$W"
-  echo "$OWNER $(date +%H:%M:%S)" > "$L/owner"; echo "${UNITY_LOCK_PID:-$PPID}" > "$L/pid"; echo acquired ;;
+  echo "$OWNER $(date +%H:%M:%S)" > "$L/owner"; [ -n "${UNITY_LOCK_PID:-}" ] && echo "$UNITY_LOCK_PID" > "$L/pid"; echo acquired ;;
 yield)
   OWNER=${2:?owner}
   [ "$(cut -d' ' -f1 "$L/owner" 2>/dev/null)" = "$OWNER" ] || { echo "not owner"; exit 1; }
   [ -n "$(head_ticket)" ] || { echo kept; exit 0; }
   rm -rf "$L"; echo "yielded to $(head_ticket | cut -d- -f3-)"
-  UNITY_LOCK_PID=${UNITY_LOCK_PID:-$PPID} exec "$0" acquire "$OWNER" "${3:-3600}" ;;
+  exec "$0" acquire "$OWNER" "${3:-3600}" ;;
 want) echo "$2" > "$W"; echo "priority set for $2" ;;
 touch) [ "$(cut -d' ' -f1 "$L/owner" 2>/dev/null)" = "$2" ] && touch "$L" && echo touched || { echo "not owner"; exit 1; } ;;
 release) if [ "$(cut -d' ' -f1 "$L/owner" 2>/dev/null)" = "$2" ]; then rm -rf "$L"; echo released; else echo "not owner ($(cat "$L/owner" 2>/dev/null))"; exit 1; fi ;;

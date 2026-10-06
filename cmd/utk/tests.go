@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -283,17 +284,12 @@ return "TOOLTESTS:" + string.Join(",", bad.ToArray());`
 // toolTestsNotExplicit returns the offending names, a "(could not scan …)"
 // reason, or "" when the suite is clear.
 func toolTestsNotExplicit(project string) string {
-	var out bytes.Buffer
-	args := []string{"exec", toolTestsSnippet, "--timeout", "15000"}
-	if project != "" {
-		args = append(args, "--project-path", project)
-	}
 	// Fails closed: a scan that did not run cannot clear a suite that may hold
 	// the Editor for minutes.
-	if run(args, &out, io.Discard) != 0 {
+	s, code := editorSnippet(toolTestsSnippet, project)
+	if code != 0 {
 		return "(could not scan: the Editor did not run the check)"
 	}
-	s := out.String()
 	i := strings.Index(s, "TOOLTESTS:")
 	if i < 0 {
 		return "(could not scan: no TOOLTESTS line in the answer)"
@@ -307,3 +303,55 @@ func editorProjectOf(args []string) string {
 	}
 	return localProjectRoot()
 }
+
+// editorSnippet runs a C# snippet in the Editor; a var for tests (set in init:
+// run reaches it, so a plain initializer would be a cycle).
+var editorSnippet func(snippet, project string) (string, int)
+
+func init() { editorSnippet = runSnippet }
+
+func runSnippet(snippet, project string) (string, int) {
+	var out bytes.Buffer
+	args := []string{"exec", snippet, "--timeout", "15000"}
+	if project != "" {
+		args = append(args, "--project-path", project)
+	}
+	code := run(args, &out, io.Discard)
+	return out.String(), code
+}
+
+// filterNamesOnlyMethods: no ';'-separated part of a run_tests filter names a
+// class or a namespace, so each names a test method or a case (a SetName'd
+// TestCaseSource case is no method, hence the check runs this way round). Only
+// then does utk send include_explicit: `--filter QuestBotTests` must not start
+// the [Explicit] sweeps in that class. Fails closed (false) when the Editor
+// cannot answer.
+func filterNamesOnlyMethods(filter, project string) bool {
+	var parts []string
+	for _, p := range strings.Split(filter, ";") {
+		if p = strings.TrimSpace(p); p != "" {
+			if i := strings.Index(p, "("); i > 0 {
+				p = p[:i]
+			}
+			parts = append(parts, strconv.Quote(p))
+		}
+	}
+	if len(parts) == 0 {
+		return false
+	}
+	out, code := editorSnippet(strings.Replace(methodFilterSnippet, "PARTS", strings.Join(parts, ","), 1), project)
+	return code == 0 && strings.Contains(out, "METHODS:yes")
+}
+
+// methodFilterSnippet answers "METHODS:no <part>" when a part is a type's full
+// name or its tail after a '.', or a namespace (or its tail / a prefix of one).
+const methodFilterSnippet = `var parts = new[] { PARTS };
+foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies()) {
+  System.Type[] ts; try { ts = asm.GetTypes(); } catch { continue; }
+  foreach (var t in ts) {
+    var full = (t.FullName ?? t.Name).Replace('+', '.'); var ns = t.Namespace ?? "";
+    foreach (var p in parts)
+      if (full == p || full.EndsWith("." + p) || ns == p || ns.EndsWith("." + p) || ns.StartsWith(p + ".")) return "METHODS:no " + p;
+  }
+}
+return "METHODS:yes";`

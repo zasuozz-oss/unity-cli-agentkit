@@ -275,15 +275,16 @@ func (c *cycle) runTestsMode(mode string, reqs []queueRequest) {
 			parts[i] = r.Args.Filter
 		}
 		raw, code := queueExec(c.cwd, queueTestTimeout, rawReportEnv, utkSelf(), "run_tests", "--mode", utkTestMode(mode), "--filter", strings.Join(parts, ";"))
-		if code == 124 {
-			// A timeout would just burn another 25 minutes per filter.
+		results, errCode, ok := decodeTestReport([]byte(raw))
+		if code == 124 || errCode == "TEST_RUN_TIMEOUT" {
+			// A timeout would just burn another 25 minutes per filter; the
+			// Editor-side run goes on unless it is stopped.
 			note := c.freeEditor(true, "merged test run timed out")
 			for _, r := range reqs {
-				c.finish(r, "TIMEOUT", 124, raw+"\nTIMEOUT: merged test run exceeded 25 min\n"+note)
+				c.finish(r, "TIMEOUT", 124, raw+"\nTIMEOUT: merged test run did not finish\n"+note)
 			}
 			return
 		}
-		results, errCode, ok := decodeTestReport([]byte(raw))
 		if ok {
 			c.splitResults(reqs, results)
 			return
