@@ -145,6 +145,8 @@ func fakeExec(t *testing.T, answers map[string]struct {
 			return "cancelled\n", 0
 		case strings.HasPrefix(line, "utk set_autotick"):
 			return "autotick set\n", 0
+		case strings.HasPrefix(line, "utk editor status"): // the PLAY-UNOWNED check: not playing unless a test says so
+			return `{"playMode":"stopped","status":"ready"}`, 0
 		}
 		t.Fatalf("unexpected exec: %s", line)
 		return "", 1
@@ -560,6 +562,9 @@ func TestServeOnceWritesResultsAndTelemetry(t *testing.T) {
 	}
 	seq := []string{}
 	for _, c := range *calls {
+		if len(c.args) > 1 && c.args[0] == "editor" && c.args[1] == "status" {
+			continue // the PLAY-UNOWNED check runs before the gate; it is not Editor work
+		}
 		seq = append(seq, c.name+" "+c.args[0])
 	}
 	// lock brackets the Editor work; the gate runs before the lock

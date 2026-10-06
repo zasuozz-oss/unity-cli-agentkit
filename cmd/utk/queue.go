@@ -36,6 +36,7 @@ type queueRequest struct {
 	Cwd       string    `json:"cwd"`
 	Submitted time.Time `json:"submitted"`
 	Args      queueArgs `json:"args"`
+	WaitS     int       `json:"wait_s,omitempty"` // the submitter's --wait: how long it will wait for a result
 }
 
 type queueResult struct {
@@ -270,6 +271,12 @@ func runQueue(args []string, stdout, stderr io.Writer) int {
 		if n := hungNotice(dir); n != "" {
 			fmt.Fprintln(stdout, "HUNG:", n)
 		}
+		if n, pending := playUnowned(dir, reqCwd(reqs), time.Now()); n != "" {
+			fmt.Fprintln(stdout, n)
+		} else if pending {
+			fmt.Fprintf(stdout, "play: the Editor is in Play with no lock holder and no job (first seen %s); reported as PLAY-UNOWNED after %s\n",
+				playSince(dir), playUnownedGrace)
+		}
 		if b, err := os.ReadFile(filepath.Join(dir, "running")); err == nil {
 			fmt.Fprint(stdout, "running: ", string(b))
 		}
@@ -301,6 +308,13 @@ func runQueue(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "serve":
 		return runServe(dir, stdout, stderr)
+	case "play-check":
+		// unity-job.sh asks before it takes the lock: exit 75 + the notice = unowned Play.
+		if n, _ := playUnowned(dir, localProjectRoot(), time.Now()); n != "" {
+			fmt.Fprintln(stdout, n)
+			return exitBlocked
+		}
+		return 0
 	case "cancel":
 		// Removing the request is the whole protocol: a queued one is never
 		// picked up, a running one is stopped by its job's gone() check, and
@@ -345,6 +359,7 @@ func runSubmit(dir string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "utk queue submit:", err)
 		return 2
 	}
+	r.WaitS = wait
 	if err := writeRequest(dir, r); err != nil {
 		fmt.Fprintln(stderr, "utk queue submit:", err)
 		return 1

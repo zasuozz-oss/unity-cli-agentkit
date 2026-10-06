@@ -62,6 +62,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return runEditorWait(rest[1:], stdout, stderr)
 		case "restart":
 			return runEditorRestart(rest[1:], stderr)
+		case "play", "stop":
+			var code int
+			if rest, code = guardEditorPlay(rest[0], rest, stderr); code >= 0 {
+				return code
+			}
 		}
 	}
 	// `utk --help` used to map onto `unity command --help`, which documents the

@@ -196,6 +196,7 @@ type watchdog struct {
 	lastTick    time.Time
 	lastRestart time.Time // kept in <dir>/watchdog-restart: a respawned coordinator still knows it
 	now         func() time.Time
+	playTold    bool // PLAY-UNOWNED already reported for this Play
 }
 
 func newWatchdog(dir string) *watchdog {
@@ -217,6 +218,12 @@ func (w *watchdog) tick(cwd string, stderr io.Writer) bool {
 		return hungNotice(w.dir) != ""
 	}
 	w.lastTick = now
+	if n, _ := playUnowned(w.dir, cwd, now); n == "" {
+		w.playTold = false
+	} else if !w.playTold {
+		w.playTold = true
+		fmt.Fprintf(stderr, "%s utk queue: watchdog: %s\n", stamp(), n)
+	}
 	if busyElsewhere() {
 		w.hungSince = time.Time{}
 		return hungNotice(w.dir) != ""
