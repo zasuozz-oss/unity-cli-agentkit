@@ -193,6 +193,21 @@ func TestRunTestsExplicitOnlyForMethodFilters(t *testing.T) {
 	}
 }
 
+// The exec answer ends with the Editor's log lines: only the TOOLTESTS line counts.
+func TestToolTestsScanIgnoresTrailingLogLines(t *testing.T) {
+	answer := "TOOLTESTS:\"\"\n[Log] Executing IPostBuildCleanup for: Unity.PerformanceTesting.Editor.TestRunBuilder.\n"
+	old := editorSnippet
+	editorSnippet = func(s, project string) (string, int) { return answer, 0 }
+	t.Cleanup(func() { editorSnippet = old })
+	if got := toolTestsNotExplicit(""); got != "" {
+		t.Fatalf("clear suite refused: %q", got)
+	}
+	answer = "TOOLTESTS:QuestBotTests.Sweep\n[Log] x\n"
+	if got := toolTestsNotExplicit(""); got != "QuestBotTests.Sweep" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func calledLines(lines []string, prefix string) int {
 	n := 0
 	for _, l := range lines {

@@ -294,7 +294,11 @@ func toolTestsNotExplicit(project string) string {
 	if i < 0 {
 		return "(could not scan: no TOOLTESTS line in the answer)"
 	}
-	return strings.TrimSpace(strings.Trim(strings.TrimSpace(s[i+len("TOOLTESTS:"):]), `"`))
+	s = s[i+len("TOOLTESTS:"):]
+	if j := strings.IndexByte(s, '\n'); j >= 0 { // exec appends the Editor's log lines after the result
+		s = s[:j]
+	}
+	return strings.TrimSpace(strings.Trim(strings.TrimSpace(s), `"`))
 }
 
 func editorProjectOf(args []string) string {
