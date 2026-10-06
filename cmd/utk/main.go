@@ -46,6 +46,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 	cmd := args[0]
 	rest := args[1:]
 
+	// --help / -h answer first, before any branch that acts: `utk editor restart --help` ran a real
+	// restart of the shared Editor (2026-10-06). Verbs with their own usage print it; the rest keep the
+	// `list <tool>` schema. Nothing below this block runs, so no command, queue or Unity call happens.
+	if cmd == "--help" || cmd == "-h" || cmd == "help" {
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
+	if hasFlag(rest, "--help") || hasFlag(rest, "-h") {
+		if u := localUsage(cmd, rest); u != "" {
+			fmt.Fprint(stdout, u)
+			return 0
+		}
+		// `utk run_tests --help` reached the official CLI as `command run_tests --help`, which prints the
+		// CLI's generic usage and not one of the tool's parameters: answer with the tool's schema.
+		if cmd != "list" {
+			tool := cmd
+			if cmd == "editor" && len(rest) > 0 && editorSubMap[rest[0]] != "" {
+				tool = editorSubMap[rest[0]]
+			}
+			cmd, rest = "list", []string{tool}
+		}
+	}
 	if cmd == "init" {
 		return runInit(rest) // implemented in init.go
 	}
@@ -68,23 +90,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 				return code
 			}
 		}
-	}
-	// `utk --help` used to map onto `unity command --help`, which documents the
-	// official CLI and never mentions a single utk verb — an agent that runs it
-	// to orient itself learns nothing about the tool it is holding.
-	if cmd == "--help" || cmd == "-h" || cmd == "help" {
-		fmt.Fprint(stdout, usage)
-		return 0
-	}
-	// `utk run_tests --help` reached the official CLI as `command run_tests
-	// --help`, which prints the CLI's generic usage and not one of the tool's
-	// parameters — agents then guessed flags. Answer with the tool's schema.
-	if cmd != "list" && (hasFlag(rest, "--help") || hasFlag(rest, "-h")) {
-		tool := cmd
-		if cmd == "editor" && len(rest) > 0 && editorSubMap[rest[0]] != "" {
-			tool = editorSubMap[rest[0]]
-		}
-		cmd, rest = "list", []string{tool}
 	}
 	// Unity's ForceReserializeAssets ignores paths that do not exist, and the
 	// snippet we generate returns a hardcoded "reserialized" either way — so a
