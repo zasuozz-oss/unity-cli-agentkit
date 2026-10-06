@@ -107,6 +107,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "  Full suite only when the user asked for it: UTK_FULL_SUITE=1 utk run_tests ...")
 			return 2
 		}
+		// The pipeline drops [Explicit] tests even when a filter names them. A
+		// filter naming test methods is the explicit request NUnit means by the
+		// attribute; a class or namespace filter is not (it would start sweeps).
+		if f := findFlag(rest, "--filter"); f != "" && !hasFlag(rest, "--include_explicit") && filterNamesOnlyMethods(f, editorProjectOf(rest)) {
+			rest = append(rest, "--include_explicit", "true")
+		}
 		if findFlag(rest, "--filter") == "" {
 			if names := toolTestsNotExplicit(editorProjectOf(rest)); names != "" {
 				fmt.Fprintf(stderr, "utk: refused the full suite: Category(\"Tool\") tests without [Explicit] would run in it: %s\n", names)
