@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,58 @@ func probeMainThread(cwd string) string {
 		return "hung"
 	}
 	return "down"
+}
+
+// modalMarkers are the frames a main thread shows while a native modal sits on it
+// (an NSAlert such as EditorSceneManager::HandleOpenScenesChangeOnDisk, a runModal
+// loop, Unity's own DisplayDialog). A hung Editor in a modal must be answered, not restarted.
+var modalMarkers = regexp.MustCompile(`HandleOpenScenesChangeOnDisk|runModal|NSAlert|beginModalSession|DisplayDialog`)
+
+// dialogCmd is $UTK_DIALOG_CMD, else the one line of ~/.unity-cli-agentkit/dialog-cmd: the coordinator is spawned by
+// whichever tab submits first, so its environment is not something a role can count on.
+func dialogCmd() string {
+	if c := os.Getenv("UTK_DIALOG_CMD"); c != "" {
+		return c
+	}
+	b, _ := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".unity-cli-agentkit", "dialog-cmd"))
+	return strings.TrimSpace(string(b))
+}
+
+// modalDialog returns "" when no Unity main thread is inside a modal, else a
+// `DIALOG: ...` line. UTK_DIALOG_CMD (e.g. game-studio's tools/unity-dialog.sh) adds
+// the dialog text and buttons (`list`) and, for the known scene-changed-on-disk alert,
+// presses Reload (disk is git, the truth: coordination-rules "Editor dialogs").
+func modalDialog(cwd, dir string) string {
+	out, code := queueExec(cwd, 10*time.Second, nil, "pgrep", "-x", "Unity")
+	if code != 0 {
+		return ""
+	}
+	for _, pid := range strings.Fields(out) {
+		f := filepath.Join(dir, "sample-"+pid+".txt")
+		if _, c := queueExec(cwd, 30*time.Second, nil, "sample", pid, "1", "-file", f); c != 0 {
+			continue
+		}
+		b, _ := os.ReadFile(f)
+		os.Remove(f)
+		m := modalMarkers.FindString(string(b))
+		if strings.Contains(string(b), "HandleOpenScenesChangeOnDisk") {
+			m = "HandleOpenScenesChangeOnDisk" // the specific alert wins over the generic frames above it
+		}
+		if m == "" {
+			continue
+		}
+		line := "DIALOG: a native modal is up on the Editor main thread (pid " + pid + ", " + m + ")"
+		if cmd := dialogCmd(); cmd != "" {
+			l, _ := queueExec(cwd, 30*time.Second, nil, "bash", cmd, "list")
+			line += "; " + strings.Join(strings.Fields(l), " ")
+			if m == "HandleOpenScenesChangeOnDisk" {
+				r, _ := queueExec(cwd, 30*time.Second, nil, "bash", cmd, "click", "Reload")
+				line += "; pressed Reload: " + strings.TrimSpace(r)
+			}
+		}
+		return line
+	}
+	return ""
 }
 
 func strconvItoa(n int) string { return strconv.Itoa(n) }
@@ -172,6 +225,14 @@ func (w *watchdog) tick(cwd string, stderr io.Writer) bool {
 		w.hungSince = time.Time{}
 		os.Remove(filepath.Join(w.dir, "HUNG")) // it answers again: whoever fixed it, the notice is stale
 		return false
+	}
+	if d := modalDialog(cwd, w.dir); d != "" { // a dialog is not a hang: say so, never restart under it
+		w.hungSince = time.Time{}
+		if hungNotice(w.dir) != d {
+			os.WriteFile(filepath.Join(w.dir, "HUNG"), []byte(d+"\n"), 0o644)
+			fmt.Fprintf(stderr, "%s utk queue: watchdog: %s\n", stamp(), d)
+		}
+		return true
 	}
 	if w.hungSince.IsZero() {
 		w.hungSince = now

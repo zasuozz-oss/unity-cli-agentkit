@@ -9,7 +9,7 @@
 # `$UNITY_JOB_BOARD status <task> wait-editor|doing` and `$UNITY_JOB_BOARD lockwait <task> <secs>`;
 # unset = no board calls. Skips acquiring when $UNITY_LOCK_OWNER
 # already holds the lock. UNITY_JOB_DRY=1 skips utk (selftest).
-# No utk command closes a modal dialog (checked `utk list` 2026-10-04): a dialog ends as TIMEOUT.
+# No utk command closes a modal dialog (checked `utk list` 2026-10-04): a dialog ends as TIMEOUT; game-studio tools/unity-dialog.sh list|click sees and presses it.
 # Run it with the Bash tool's run_in_background so the agent keeps coding while it waits.
 # --gate <repo> runs `unity-test.sh offline <repo>` before queueing; a failing build exits 1 without taking the lock.
 # UNITY_JOB_NO_TICK=1 leaves autotick alone: a batchmode job in a worktree lane must not
