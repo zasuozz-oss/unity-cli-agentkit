@@ -136,6 +136,16 @@ func fakeExec(t *testing.T, answers map[string]struct {
 		if strings.HasPrefix(line, "utk editor gc") {
 			return "destroyed 0 leaked OS fallback fonts\n", 0 // housekeeping every cycle does
 		}
+		switch {
+		case strings.HasPrefix(line, "utk editor wait"): // before every refresh
+			return "ready (waited 0s)\n", 0
+		case strings.HasPrefix(line, "utk exec "+probeSnippet): // the main-thread probe
+			return "alive\n", 0
+		case strings.HasPrefix(line, "utk cancel_tests"): // after a stopped test job
+			return "cancelled\n", 0
+		case strings.HasPrefix(line, "utk set_autotick"):
+			return "autotick set\n", 0
+		}
 		t.Fatalf("unexpected exec: %s", line)
 		return "", 1
 	}
@@ -405,8 +415,13 @@ func TestCycleSceneJobsShortestFirstWithTimeout(t *testing.T) {
 	}
 	c := newCycle(t.TempDir(), reqs, io.Discard)
 	c.runSceneJobs()
-	order := []string{}
+	order, jobs := []string{}, []fakeCall{}
 	for _, call := range *calls {
+		if !strings.HasPrefix(strings.Join(call.args, " "), "exec "+probeSnippet) { // skip freeEditor's probe after the hung job
+			jobs = append(jobs, call)
+		}
+	}
+	for _, call := range jobs {
 		// fakeLine folds `bash <script>` into name=<script> with no args.
 		if len(call.args) == 0 {
 			order = append(order, call.name)
@@ -418,7 +433,7 @@ func TestCycleSceneJobsShortestFirstWithTimeout(t *testing.T) {
 		t.Fatalf("order = %v", order)
 	}
 	// A scene script that wraps unity-job.sh must see the coordinator as the lock owner.
-	for _, call := range *calls {
+	for _, call := range jobs {
 		if env := strings.Join(call.env, " "); !strings.Contains(env, "UNITY_LOCK_OWNER=coordinator") || !strings.Contains(env, "UNITY_QUEUE_REQUEST=") {
 			t.Errorf("%s env = %q", call.name, env)
 		}

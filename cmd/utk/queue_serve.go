@@ -56,14 +56,24 @@ func serveOnce(dir string, stderr io.Writer) int {
 	cwd := reqs[0].Cwd
 	lastServedCwd = cwd
 	var results map[string]queueResult
-	if !editorAnswers(cwd) {
-		// A modal dialog or a dead server: nothing we send will run. Say so
-		// to everyone now rather than let them wait out an hour each.
+	blocked := func(msg string) {
 		results = map[string]queueResult{}
 		for _, r := range reqs {
-			results[r.ID] = queueResult{ID: r.ID, Status: "EDITOR_BLOCKED", Exit: 1,
-				Stdout: "the Editor does not answer `utk status` (modal dialog? not running?); fix it and resubmit\n"}
+			results[r.ID] = queueResult{ID: r.ID, Status: "EDITOR_BLOCKED", Exit: 1, Stdout: msg}
 		}
+	}
+	if !editorAnswers(cwd) {
+		// A dead server: nothing we send will run. Say so to everyone now
+		// rather than let them wait out an hour each.
+		blocked("the Editor does not answer `utk status` (not running?); fix it and resubmit\n")
+	} else if !busyElsewhere() && probeMainThread(cwd) == "hung" {
+		// `utk status` answers from the HTTP thread; this asked the main thread.
+		// Hung, not busy: keep the requests for after the watchdog's restart.
+		notice := hungNotice(dir)
+		if notice == "" {
+			return 0
+		}
+		blocked("EDITOR_BLOCKED: " + notice + "\n")
 	} else {
 		c := newCycle(dir, reqs, stderr)
 		editorOK := c.runGateAndRefreshBeforeLock()
@@ -163,8 +173,11 @@ func (c *cycle) holdEditor(cwd string, editorOK bool) {
 			}
 		}
 	}()
+	// Autotick stays on after the cycle: an unfocused macOS Editor is throttled
+	// without it, and the next command (a unity-job, the next cycle) pays for
+	// that. runServe turns it off when the coordinator idles out.
 	defer func() {
-		queueExec(cwd, time.Minute, nil, utkSelf(), "set_autotick", "--enable", "false")
+		clearRunning(c.dir)
 		close(done)
 		<-stopped // a late touch must not land after the release
 		releaseEditorLock(cwd)
@@ -230,14 +243,20 @@ func runServe(dir string, stdout, stderr io.Writer) int {
 	defer os.Remove(pidFile)
 	fmt.Fprintln(stdout, "utk queue serve:", dir)
 	lastWork := time.Now()
+	wd := newWatchdog(dir)
 	for {
 		if serveOnce(dir, stderr) == 0 {
 			if os.Getenv("UTK_QUEUE_ONCE") == "1" {
 				return 0
 			}
+			wd.tick(lastServedCwd, stderr)
 			// The defers remove serve.pid and serve.lock.d. A submit racing
 			// this exit is covered: runSubmit re-runs ensureServe while it waits.
-			if time.Since(lastWork) >= serveIdleExit {
+			// Requests held back for a hung Editor are not idleness.
+			if reqs, _ := readRequests(dir); len(reqs) == 0 && !wd.watching() && time.Since(lastWork) >= serveIdleExit {
+				if lastServedCwd != "" {
+					queueExec(lastServedCwd, time.Minute, nil, utkSelf(), "set_autotick", "--enable", "false")
+				}
 				fmt.Fprintln(stdout, "utk queue serve: idle, exiting")
 				return 0
 			}

@@ -143,7 +143,7 @@ func parseSubmit(args []string, now time.Time) (queueRequest, int, error) {
 		return queueRequest{}, 0, errors.New("usage: utk queue submit compile|test|scene|shot [flags]")
 	}
 	r := queueRequest{ID: newRequestID(now), Kind: args[0], PID: os.Getpid(), Submitted: now,
-		Args: queueArgs{Mode: "editmode", EstS: 60, TimeoutS: 300}}
+		Args: queueArgs{Mode: "editmode", EstS: 60}}
 	r.Cwd, _ = os.Getwd()
 	if p := localProjectRoot(); p != "" {
 		r.Cwd = p
@@ -200,6 +200,14 @@ func parseSubmit(args []string, now time.Time) (queueRequest, int, error) {
 		}
 		if err != nil {
 			return r, 0, err
+		}
+	}
+	if r.Args.TimeoutS <= 0 {
+		// A test class gets more room than a scene command; either way the
+		// Editor-side run is stopped when it runs out (queue_watchdog.go).
+		r.Args.TimeoutS = 300
+		if r.Kind == "test" {
+			r.Args.TimeoutS = 600
 		}
 	}
 	switch r.Kind {
@@ -259,6 +267,19 @@ func runQueue(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "%s: %d pending\n", dir, len(reqs))
+		if n := hungNotice(dir); n != "" {
+			fmt.Fprintln(stdout, "HUNG:", n)
+		}
+		if b, err := os.ReadFile(filepath.Join(dir, "running")); err == nil {
+			fmt.Fprint(stdout, "running: ", string(b))
+		}
+		if owner, pid := lockHolder(); owner != "" {
+			state := ""
+			if pid > 0 && !pidAlive(pid) {
+				state = " (holder gone; the next acquire frees it)"
+			}
+			fmt.Fprintf(stdout, "editor lock: %s pid %d%s\n", owner, pid, state)
+		}
 		for _, r := range reqs {
 			fmt.Fprintf(stdout, "%s %-7s %s %s %s\n", r.ID, r.Agent, r.Kind, describeArgs(r), r.Submitted.Format("15:04:05"))
 		}

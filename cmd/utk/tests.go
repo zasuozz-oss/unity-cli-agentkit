@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,10 +13,11 @@ import (
 	"github.com/zasuo/unity-cli-agentkit/internal/official"
 )
 
+// The official CLI polls its own async runs for 10 minutes; match it rather
+// than invent a second number a suite could sit between. A var for tests.
+var testPollBudget = 10 * time.Minute
+
 const (
-	// The official CLI polls its own async runs for 10 minutes; match it rather
-	// than invent a second number a suite could sit between.
-	testPollBudget = 10 * time.Minute
 	// Each poll spawns a `unity` process (~5s on its own), so a short interval
 	// buys nothing — it only stacks startups back to back.
 	testPollStep = 2 * time.Second
@@ -75,7 +77,13 @@ func pollTests(initial []byte, start time.Time, projectPath string, stderr io.Wr
 	}
 	fmt.Fprintf(stderr, "utk: tests still running after %s — poll `utk test_status` for the result\n",
 		testPollBudget)
-	return initial, 1
+	// Not the hand-off envelope: it is success with no results, and the queue
+	// read it as an empty report (NO_TESTS_MATCHED) while the run went on.
+	env, _ := json.Marshal(map[string]any{
+		"success": false,
+		"errors":  []map[string]string{{"code": "TEST_RUN_TIMEOUT", "message": "tests still running after " + testPollBudget.String()}},
+	})
+	return env, 1
 }
 
 // testRunFinished reads test_status's own status field.
@@ -250,4 +258,52 @@ func abandonTests(msg, projectPath string, stderr io.Writer) ([]byte, int) {
 		"errors":  []map[string]string{{"code": "TEST_RUN_CRASHED", "message": firstLine(msg)}},
 	})
 	return env, 1
+}
+
+// toolTestsSnippet lists test methods in Category("Tool") — on the method or
+// its fixture — that carry no [Explicit] on either. The pipeline's full run
+// skips [Explicit] but cannot exclude a category, so [Explicit] is the guard.
+const toolTestsSnippet = `var bad = new System.Collections.Generic.List<string>();
+foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies()) {
+  bool nunit = false; foreach (var r in asm.GetReferencedAssemblies()) if (r.Name == "nunit.framework") nunit = true;
+  if (!nunit) continue;
+  System.Type[] ts; try { ts = asm.GetTypes(); } catch { continue; }
+  foreach (var t in ts) {
+    bool tTool = false, tExp = false;
+    foreach (var a in t.GetCustomAttributes(true)) { var n = a.GetType().Name; if (n == "ExplicitAttribute") tExp = true; if (n == "CategoryAttribute" && (string)a.GetType().GetProperty("Name").GetValue(a) == "Tool") tTool = true; }
+    foreach (var m in t.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly)) {
+      bool test = false, tool = tTool, exp = tExp;
+      foreach (var a in m.GetCustomAttributes(true)) { var n = a.GetType().Name; if (n == "TestAttribute" || n == "TestCaseAttribute" || n == "TestCaseSourceAttribute" || n == "UnityTestAttribute") test = true; if (n == "ExplicitAttribute") exp = true; if (n == "CategoryAttribute" && (string)a.GetType().GetProperty("Name").GetValue(a) == "Tool") tool = true; }
+      if (test && tool && !exp) bad.Add(t.Name + "." + m.Name);
+    }
+  }
+}
+return "TOOLTESTS:" + string.Join(",", bad.ToArray());`
+
+// toolTestsNotExplicit returns the offending names, a "(could not scan …)"
+// reason, or "" when the suite is clear.
+func toolTestsNotExplicit(project string) string {
+	var out bytes.Buffer
+	args := []string{"exec", toolTestsSnippet, "--timeout", "15000"}
+	if project != "" {
+		args = append(args, "--project-path", project)
+	}
+	// Fails closed: a scan that did not run cannot clear a suite that may hold
+	// the Editor for minutes.
+	if run(args, &out, io.Discard) != 0 {
+		return "(could not scan: the Editor did not run the check)"
+	}
+	s := out.String()
+	i := strings.Index(s, "TOOLTESTS:")
+	if i < 0 {
+		return "(could not scan: no TOOLTESTS line in the answer)"
+	}
+	return strings.TrimSpace(strings.Trim(strings.TrimSpace(s[i+len("TOOLTESTS:"):]), `"`))
+}
+
+func editorProjectOf(args []string) string {
+	if p := findFlag(args, "--project-path"); p != "" {
+		return p
+	}
+	return localProjectRoot()
 }

@@ -14,6 +14,10 @@
 # --gate <repo> runs `unity-test.sh offline <repo>` before queueing; a failing build exits 1 without taking the lock.
 # UNITY_JOB_NO_TICK=1 leaves autotick alone: a batchmode job in a worktree lane must not
 # toggle the main Editor's autotick under another agent's job.
+# The lock records this script's pid (UNITY_LOCK_PID): a killed job frees the Editor at once.
+# A multi-step command calls "$UNITY_JOB_YIELD" between its steps: when someone waits for the
+# Editor (a queued compile, one test class), the lock goes to them for one turn and comes back;
+# so a short job waits at most one step of a long one, not the whole job.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 LOCK=$HERE/unity-lock.sh
@@ -40,6 +44,9 @@ selftest() {
   [ "$("$LOCK" status)" = free ] || { echo "FAIL: gate took the lock"; exit 1; }
   UNITY_JOB_GATE_CMD="$tmp/gate-ok" "$0" own "$tmp/g2.log" --gate /nowhere -- true >/dev/null || { echo "FAIL: gate should pass"; exit 1; }
   tail -1 "$UTK_TELEMETRY" | grep -q '"result":"PASS"' || { echo "FAIL: gated job telemetry"; exit 1; }
+  # the command sees its yield hook and the lock owner; the lock records this job's pid
+  "$0" own "$tmp/env.log" -- bash -c 'echo "Y=$UNITY_JOB_YIELD O=$UNITY_LOCK_OWNER P=$(cat "$UNITY_LOCK_DIR/t.lock.d/pid")"' >/dev/null
+  grep -q "Y=env UNITY_LOCK_NAME=t .*unity-lock.sh yield own O=own P=[0-9]" "$tmp/env.log" || { echo "FAIL: env for the command: $(grep Y= "$tmp/env.log")"; exit 1; }
   "$0" own "$tmp/bad.log" -- false >/dev/null; [ $? = 1 ] && grep -q '^RESULT: FAIL$' "$tmp/bad.log" || { echo "FAIL: fail log"; exit 1; }
   "$0" own "$tmp/slow.log" --timeout 1 -- sleep 5 >/dev/null; [ $? = 124 ] || { echo "FAIL: timeout code"; exit 1; }
   grep -q '^RESULT: TIMEOUT$' "$tmp/slow.log" || { echo "FAIL: timeout log"; exit 1; }
@@ -79,6 +86,7 @@ GOT=0
 if [ "$("$LOCK" status | cut -d' ' -f1)" != "${UNITY_LOCK_OWNER:-}" ] || [ -z "${UNITY_LOCK_OWNER:-}" ]; then
   board status "$TASK" wait-editor
   t0=$SECONDS
+  export UNITY_LOCK_PID=$$
   "$LOCK" acquire "$OWNER" 3600 >/dev/null || { echo "lock: $("$LOCK" status)"; exit 1; }
   GOT=1; WAIT_S=$((SECONDS - t0)); board lockwait "$TASK" $WAIT_S
 fi
@@ -90,6 +98,10 @@ cleanup() { kill $TOUCHER 2>/dev/null; utk_tick false; [ $GOT = 1 ] && "$LOCK" r
 trap cleanup EXIT
 
 utk_tick true
+export UNITY_LOCK_OWNER=${UNITY_LOCK_OWNER:-$OWNER}
+# env pins the lock: the command may export another UNITY_LOCK_NAME for its own locks (a UI lock).
+[ $GOT = 1 ] && export UNITY_JOB_YIELD="env UNITY_LOCK_NAME=${UNITY_LOCK_NAME:-unity-editor} $LOCK yield $OWNER"
+export UNITY_JOB_YIELD=${UNITY_JOB_YIELD:-true}
 mkdir -p "$(dirname "$LOGF")"
 { echo "# $(date '+%F %T') owner=$OWNER task=${TASK:-none} timeout=${TO}s"; echo "# \$ $*"; } > "$LOGF"
 # The command runs in its own process group; on timeout the whole group gets TERM, then KILL,

@@ -37,7 +37,16 @@ Rules:
 
 - Submitted the wrong thing, or a job is stuck? `utk queue cancel <id>` (id from
   `utk queue status`): a queued request is withdrawn, a running job is stopped
-  and reported `CANCELLED`. A job whose submitter died is stopped the same way.
+  and reported `CANCELLED`. A job whose submitter died is stopped and reported
+  `ORPHANED`; one past its `--timeout` (tests too, default 600 s) `TIMEOUT`. In both
+  cases the Editor-side run is stopped as well: `cancel_tests`, and if the main
+  thread is still silent 60 s later, `restart --force` → `editor wait` → autotick on.
+- Hung Editor: between cycles the coordinator asks the **main thread** (a one-line
+  `exec`, 20 s) — `utk status` answers from the HTTP thread even when the Editor is
+  frozen. Silent for 5 min while no live job holds the lock → one forced restart.
+  Silent again within 30 min of it → no restart: `utk queue status` prints `HUNG:`,
+  queued jobs get `EDITOR_BLOCKED`, a human finds the cause. `UTK_NO_WATCHDOG=1` turns
+  the watchdog off. Autotick stays on while the coordinator serves.
 - The coordinator keeps the Editor healthy between cycles: it destroys the fonts
   Unity leaks at each reload (`utk editor gc`), and when domain reloads have
   become several times slower than at startup and nobody is queued it restarts
@@ -45,6 +54,7 @@ Rules:
   unsaved scenes). `UTK_NO_AUTO_RESTART=1` turns the restart off.
 
 ## Inspect
-`utk queue status` (pending), `utk queue stats --since 24h` (wait/hold per kind),
+`utk queue status` (pending, the running job and its deadline, the Editor lock holder
+and pid, a `HUNG:` line), `utk queue stats --since 24h` (wait/hold per kind),
 `~/.unity-cli-agentkit/queue/<editor>/serve.log`. The coordinator starts on the first
 `submit`; `UNITY_LOCK_NAME` picks the Editor, like unity-lock.sh.

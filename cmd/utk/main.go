@@ -107,6 +107,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "  Full suite only when the user asked for it: UTK_FULL_SUITE=1 utk run_tests ...")
 			return 2
 		}
+		if findFlag(rest, "--filter") == "" {
+			if names := toolTestsNotExplicit(editorProjectOf(rest)); names != "" {
+				fmt.Fprintf(stderr, "utk: refused the full suite: Category(\"Tool\") tests without [Explicit] would run in it: %s\n", names)
+				fmt.Fprintln(stderr, "  A tool (sweep, tuner) can hold the Editor for minutes. Mark it [Explicit]; a --filter naming it still runs it.")
+				return 2
+			}
+		}
 	}
 
 	// `utk list <tool>` = detail mode: same unity call, different rendering.
