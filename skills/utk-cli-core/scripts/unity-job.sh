@@ -3,7 +3,7 @@
 #   <this skill>/scripts/unity-job.sh <owner> <log> [--task ID] [--timeout S] [--kind compile|test|scene|shot|other] [--gate <repo>] -- <command...>
 #   <this skill>/scripts/unity-job.sh --selftest
 # Takes the Editor lock (named after the project folder, see unity-lock.sh; an inherited
-# UNITY_LOCK_NAME is some other lock and is ignored), turns utk autotick on, runs <command> with a
+# UNITY_LOCK_NAME is some other lock and is ignored; outside a Unity project without UNITY_PROJECT_PATH it REFUSES, exit 2), turns utk autotick on, runs <command> with a
 # wall-clock limit (default 900 s), turns autotick off, releases the lock, and writes <log>:
 # the command output, then "EXIT <code>" and "RESULT: PASS|FAIL|TIMEOUT". With --task and
 # UNITY_JOB_BOARD set (a command prefix, e.g. "python3 /path/board.py") it runs
@@ -25,6 +25,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 LOCK=$HERE/unity-lock.sh
 # the Editor lock is the project's, whatever lock name the caller's shell exports
 export UNITY_LOCK_NAME=$(env -u UNITY_LOCK_NAME "$LOCK" name)
+# Outside a Unity project (cwd without Assets/ + ProjectSettings/, no UNITY_PROJECT_PATH) the name falls back to the generic
+# "unity-editor": a job would then hold a lock that is not the project's and `utk editor play` inside it is refused. Refuse instead.
+if [ "${1:-}" != --selftest ] && [ "$UNITY_LOCK_NAME" = unity-editor ]; then
+  echo "REFUSED: $PWD is not inside a Unity project and UNITY_PROJECT_PATH is not set, so the Editor lock cannot be named." >&2
+  echo "  Run it from the project folder (cd <Unity project>), or set UNITY_PROJECT_PATH=<Unity project> (UNITY_LOCK_NAME is ignored here)." >&2
+  exit 2
+fi
 
 selftest() {
   local tmp; tmp=$(mktemp -d)
@@ -35,6 +42,12 @@ selftest() {
   "$0" own "$tmp/ok.log" --task J1 -- echo hello >/dev/null
   grep -q '^RESULT: PASS$' "$tmp/ok.log" && grep -q hello "$tmp/ok.log" || { echo "FAIL: pass log"; exit 1; }
   [ "$(tr '\n' '|' < "$tmp/board.log" | sed -E 's/lockwait J1 [0-9]+/lockwait J1 N/')" = "status J1 wait-editor|lockwait J1 N|status J1 doing|" ] || { echo "FAIL: board calls: $(cat "$tmp/board.log")"; exit 1; }
+  # outside a project and no UNITY_PROJECT_PATH: refused (exit 2), no lock taken; UNITY_LOCK_NAME does not rescue it
+  mkdir -p "$tmp/notaproject"
+  (cd "$tmp/notaproject" && env -u UNITY_PROJECT_PATH UNITY_LOCK_NAME=t "$HERE/unity-job.sh" own "$tmp/np.log" -- true >"$tmp/np.out" 2>&1); rc=$?
+  [ $rc = 2 ] && grep -q 'REFUSED' "$tmp/np.out" && [ ! -e "$tmp/np.log" ] && [ "$(UNITY_LOCK_NAME=t "$LOCK" status)" = free ] || { echo "FAIL: outside a project must be refused (rc=$rc)"; exit 1; }
+  # ... and UNITY_PROJECT_PATH names the lock after that project from any cwd
+  (cd "$tmp/notaproject" && "$HERE/unity-job.sh" own "$tmp/np2.log" -- bash -c 'echo "N=$UNITY_LOCK_NAME"' >/dev/null); grep -q '^N=t$' "$tmp/np2.log" || { echo "FAIL: UNITY_PROJECT_PATH from a foreign cwd: $(cat "$tmp/np2.log")"; exit 1; }
   # telemetry: one JSON line per job, kind + wait + hold
   "$0" own "$tmp/tl.log" --kind test -- true >/dev/null
   line=$(tail -1 "$UTK_TELEMETRY")
