@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -108,6 +109,8 @@ func TestRestartEditor_HungEditorNeedsForce(t *testing.T) {
 func TestRestartEditor_NoEditorStartsOne(t *testing.T) {
 	steps := fakeEditor(t, "", false, false)
 	editor.find = func(string) (int, string) { return 0, "" }
+	editor.list = func() bool { return true }
+	editor.held = func(string) bool { return false }
 	editor.bin = func(string) string { return "/Apps/Unity-6000" }
 	var errb bytes.Buffer
 	if code := restartEditor("/p", false, &errb); code != 0 {
@@ -124,6 +127,8 @@ func TestRestartEditor_NoEditorStartsOne(t *testing.T) {
 func TestRestartEditor_NoEditorAndNoUnityBinaryIsAnError(t *testing.T) {
 	steps := fakeEditor(t, "", false, false)
 	editor.find = func(string) (int, string) { return 0, "" }
+	editor.list = func() bool { return true }
+	editor.held = func(string) bool { return false }
 	editor.bin = func(string) string { return "" }
 	var errb bytes.Buffer
 	if code := restartEditor("/p", false, &errb); code != 1 || !strings.Contains(errb.String(), "UNITY_BIN") || len(*steps) != 0 {
@@ -251,5 +256,61 @@ func TestRun_MaxTimeEndsAHungCallWith124(t *testing.T) {
 	}
 	if time.Since(started) > 8*time.Second {
 		t.Fatalf("took %s", time.Since(started))
+	}
+}
+
+// A silent bridge is not "no Editor": no process matched, but the project's lock file is held (a hung Editor started another way):
+// no second Unity.
+func TestRestartEditor_LockedProjectIsNotLaunchedTwice(t *testing.T) {
+	steps := fakeEditor(t, "", false, false)
+	editor.find = func(string) (int, string) { return 0, "" }
+	editor.list = func() bool { return true }
+	editor.held = func(string) bool { return true }
+	editor.bin = func(string) string { t.Fatal("looked for a binary although the project is open"); return "" }
+	var errb bytes.Buffer
+	if code := restartEditor("/p", false, &errb); code != 1 || !strings.Contains(errb.String(), "UnityLockfile") || len(*steps) != 0 {
+		t.Fatalf("exit %d steps %v: %s", code, *steps, errb.String())
+	}
+}
+
+// Only the pinned version is launched: another one opens an upgrade dialog and reimports the project.
+func TestUnityBinFor_OnlyThePinnedVersion(t *testing.T) {
+	t.Setenv("UNITY_BIN", "")
+	p := t.TempDir()
+	if got := unityBinFor(p); got != "" {
+		t.Fatalf("no ProjectVersion.txt: got %q, want none", got)
+	}
+	os.MkdirAll(filepath.Join(p, "ProjectSettings"), 0o755)
+	os.WriteFile(filepath.Join(p, "ProjectSettings", "ProjectVersion.txt"), []byte("m_EditorVersion: 1.2.3f9\n"), 0o644)
+	if got := unityBinFor(p); got != "" { // a version nobody installed, whatever else the Hub holds
+		t.Fatalf("pinned version not installed: got %q, want none", got)
+	}
+	if pinnedVersion(p) != "1.2.3f9" {
+		t.Fatalf("pinnedVersion = %q", pinnedVersion(p))
+	}
+}
+
+func TestProjectLockHeld_FreeFileIsNotHeld(t *testing.T) {
+	p := t.TempDir()
+	if projectLockHeld(p) {
+		t.Fatal("no lock file")
+	}
+	os.MkdirAll(filepath.Join(p, "Temp"), 0o755)
+	os.WriteFile(filepath.Join(p, "Temp", "UnityLockfile"), nil, 0o644) // left over by a crash
+	if projectLockHeld(p) {
+		t.Fatal("an unlocked leftover is not an open project")
+	}
+}
+
+// ps failed or the OS has none (Windows): "no process matched" proves nothing, so no launch.
+func TestRestartEditor_BlindProcessListNeverLaunches(t *testing.T) {
+	steps := fakeEditor(t, "", false, false)
+	editor.find = func(string) (int, string) { return 0, "" }
+	editor.list = func() bool { return false }
+	editor.held = func(string) bool { return false }
+	editor.bin = func(string) string { t.Fatal("looked for a binary while blind"); return "" }
+	var errb bytes.Buffer
+	if code := restartEditor("/p", false, &errb); code != 1 || !strings.Contains(errb.String(), "cannot list processes") || len(*steps) != 0 {
+		t.Fatalf("exit %d steps %v: %s", code, *steps, errb.String())
 	}
 }

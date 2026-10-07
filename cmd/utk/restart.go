@@ -21,6 +21,8 @@ import (
 type editorOps struct {
 	find  func(project string) (pid int, bin string)
 	bin   func(project string) string         // the Unity binary for a project with no running Editor; "" = none found
+	held  func(project string) bool           // Temp/UnityLockfile is locked: some Unity has the project open
+	list  func() bool                         // the process list can be read (ps answered); false = "no match" proves nothing
 	state func(project string) (string, bool) // guardSnippet's answer; false = the Editor did not answer
 	quit  func(project string)
 	alive func(pid int) bool
@@ -36,6 +38,8 @@ func init() {
 	editor = editorOps{
 		find:  findEditor,
 		bin:   unityBinFor,
+		held:  projectLockHeld,
+		list:  canListProcesses,
 		state: queryEditorState,
 		quit:  quitEditor,
 		alive: pidAlive,
@@ -154,9 +158,19 @@ func restartEditor(project string, force bool, stderr io.Writer) int {
 // Unity, wait until it answers. Nothing is at stake, so no guard; the restart marker still tells other utk calls the Editor is
 // down on purpose. Like restart it takes no lock itself: the caller (a job, recover.sh) holds the Editor lock.
 func startStoppedEditor(project string, stderr io.Writer) int {
+	// "No Editor" is decided by the project, not by a silent bridge: a hung, compiling or bridge-dead Editor still holds the lock file,
+	// and a second launch would be a second Editor or a "project already open" dialog.
+	if !editor.list() {
+		fmt.Fprintf(stderr, "utk: cannot list processes here (ps failed, or this OS has no ps), so utk cannot tell that no Editor has %s open: not launching one. Start Unity by hand\n", project)
+		return 1
+	}
+	if editor.held(project) {
+		fmt.Fprintf(stderr, "utk: no Unity process matched %s, but Temp/UnityLockfile is locked: an Editor still has the project open (hung, or started another way). Not launching a second one; find it (`ps -ax | grep Unity`), or `utk editor wait`\n", project)
+		return 1
+	}
 	bin := editor.bin(project)
 	if bin == "" {
-		fmt.Fprintf(stderr, "utk: no running Editor for %s and no Unity binary found for it: set UNITY_BIN=/path/to/Unity, or install the version in ProjectSettings/ProjectVersion.txt\n", project)
+		fmt.Fprintf(stderr, "utk: no running Editor for %s and no Unity %s found: set UNITY_BIN=/path/to/Unity, or install exactly the version in ProjectSettings/ProjectVersion.txt (another version would open an upgrade dialog and reimport the project)\n", project, pinnedVersion(project))
 		return 1
 	}
 	started := time.Now()
@@ -176,46 +190,39 @@ func startStoppedEditor(project string, stderr io.Writer) int {
 	return 0
 }
 
-// unityBinFor: $UNITY_BIN, else the project's pinned version under the Hub's default install folder, else any installed one
-// (the same order as unity-test.sh).
+// pinnedVersion is m_EditorVersion of the project, "" when unknown.
+func pinnedVersion(project string) string {
+	if data, err := os.ReadFile(filepath.Join(project, "ProjectSettings", "ProjectVersion.txt")); err == nil {
+		for _, l := range strings.Split(string(data), "\n") {
+			if f := strings.Fields(l); len(f) == 2 && f[0] == "m_EditorVersion:" {
+				return f[1]
+			}
+		}
+	}
+	return ""
+}
+
+// unityBinFor: $UNITY_BIN, else EXACTLY the project's pinned version under the Hub's default install folder. No "any installed
+// version" fallback: another version opens an upgrade dialog and reimports the whole project. "" = none.
 func unityBinFor(project string) string {
 	if b := os.Getenv("UNITY_BIN"); b != "" {
 		return b
 	}
-	ver := ""
-	if data, err := os.ReadFile(filepath.Join(project, "ProjectSettings", "ProjectVersion.txt")); err == nil {
-		for _, l := range strings.Split(string(data), "\n") {
-			if f := strings.Fields(l); len(f) == 2 && f[0] == "m_EditorVersion:" {
-				ver = f[1]
-			}
-		}
+	ver := pinnedVersion(project)
+	if ver == "" {
+		return ""
 	}
-	var roots []string
+	var root, tail string
 	switch runtime.GOOS {
 	case "darwin":
-		roots = []string{"/Applications/Unity/Hub/Editor"}
+		root, tail = "/Applications/Unity/Hub/Editor", "Unity.app/Contents/MacOS/Unity"
 	case "windows":
-		roots = []string{`C:\Program Files\Unity\Hub\Editor`}
+		root, tail = `C:\Program Files\Unity\Hub\Editor`, `Editor\Unity.exe`
 	default:
-		roots = []string{filepath.Join(os.Getenv("HOME"), "Unity", "Hub", "Editor")}
+		root, tail = filepath.Join(os.Getenv("HOME"), "Unity", "Hub", "Editor"), "Editor/Unity"
 	}
-	tail := map[string]string{"darwin": "Unity.app/Contents/MacOS/Unity", "windows": `Editor\Unity.exe`}[runtime.GOOS]
-	if tail == "" {
-		tail = "Editor/Unity"
-	}
-	for _, r := range roots {
-		cands := []string{filepath.Join(r, ver)}
-		if all, _ := filepath.Glob(filepath.Join(r, "*")); len(all) > 0 {
-			cands = append(cands, all...)
-		}
-		for _, c := range cands {
-			if ver == "" && c == filepath.Join(r, ver) {
-				continue
-			}
-			if b := filepath.Join(c, tail); fileExists(b) {
-				return b
-			}
-		}
+	if b := filepath.Join(root, ver, tail); fileExists(b) {
+		return b
 	}
 	return ""
 }
