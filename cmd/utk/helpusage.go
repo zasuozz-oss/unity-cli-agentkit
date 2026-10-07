@@ -18,7 +18,7 @@ func localUsage(cmd string, rest []string) string {
 		case "wait":
 			return "usage: utk editor wait [--timeout S] [--project-path P]\nblock until the Editor answers and is neither compiling nor reloading (default 300 s; exit 124 on timeout)\n"
 		case "restart":
-			return "usage: utk editor restart [--force]\nquit the Editor, start it again, wait until ready. Refuses while playing or with unsaved scenes unless --force. With NO Editor running (a crash) it just starts the project's Unity (UNITY_BIN, else the version in ProjectSettings/ProjectVersion.txt) and waits until ready. Needs the Editor lock: it takes the shared Editor down for ~1-2 min.\n"
+			return "usage: utk editor restart [--force]\nquit the Editor, start it again, wait until ready. Refuses while playing or with unsaved scenes unless --force. With NO Editor running (a crash) it just starts the project's Unity (UNITY_BIN, else EXACTLY the version in ProjectSettings/ProjectVersion.txt) and waits until ready. It refuses to launch when it cannot be sure no Editor has the project: ps unreadable (Windows), Temp/UnityLockfile locked or unreadable. Needs the Editor lock: it takes the shared Editor down for ~1-2 min.\n"
 		case "play":
 			return "usage: utk editor play [--force]\nenter Play. Needs the Editor lock (UNITY_LOCK_OWNER = holder) or a queue job; --force is for the user / manual use only.\n"
 		case "stop":
