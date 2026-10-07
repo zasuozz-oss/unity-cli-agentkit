@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 // tests swap the whole Editor for a recorder.
 type editorOps struct {
 	find  func(project string) (pid int, bin string)
+	bin   func(project string) string         // the Unity binary for a project with no running Editor; "" = none found
 	state func(project string) (string, bool) // guardSnippet's answer; false = the Editor did not answer
 	quit  func(project string)
 	alive func(pid int) bool
@@ -33,6 +35,7 @@ var editor editorOps
 func init() {
 	editor = editorOps{
 		find:  findEditor,
+		bin:   unityBinFor,
 		state: queryEditorState,
 		quit:  quitEditor,
 		alive: pidAlive,
@@ -100,8 +103,7 @@ func restartInProgress() bool {
 func restartEditor(project string, force bool, stderr io.Writer) int {
 	pid, bin := editor.find(project)
 	if pid == 0 {
-		fmt.Fprintf(stderr, "utk: no running Editor for %s — nothing to restart (open the project in Unity first)\n", project)
-		return 1
+		return startStoppedEditor(project, stderr)
 	}
 	if !force {
 		st, ok := editor.state(project)
@@ -147,6 +149,78 @@ func restartEditor(project string, force bool, stderr io.Writer) int {
 	fmt.Fprintf(stderr, "utk: Editor restarted in %ds\n", int(time.Since(started).Seconds()))
 	return 0
 }
+
+// startStoppedEditor is a restart with nothing to quit (after a crash, or an Editor closed by hand): launch the project's pinned
+// Unity, wait until it answers. Nothing is at stake, so no guard; the restart marker still tells other utk calls the Editor is
+// down on purpose. Like restart it takes no lock itself: the caller (a job, recover.sh) holds the Editor lock.
+func startStoppedEditor(project string, stderr io.Writer) int {
+	bin := editor.bin(project)
+	if bin == "" {
+		fmt.Fprintf(stderr, "utk: no running Editor for %s and no Unity binary found for it: set UNITY_BIN=/path/to/Unity, or install the version in ProjectSettings/ProjectVersion.txt\n", project)
+		return 1
+	}
+	started := time.Now()
+	os.MkdirAll(kitHome(), 0o755)
+	os.WriteFile(restartMarker(), []byte(project), 0o644)
+	defer os.Remove(restartMarker())
+	fmt.Fprintf(stderr, "utk: no running Editor for %s: starting %s\n", project, bin)
+	if err := editor.start(bin, project); err != nil {
+		fmt.Fprintln(stderr, "utk: could not start the Editor:", err)
+		return 1
+	}
+	if why, ok := editor.ready(project, restartReadyWait, stderr); !ok {
+		fmt.Fprintf(stderr, "utk: the Editor was started but is not ready after %s (%s)\n", restartReadyWait, why)
+		return 1
+	}
+	fmt.Fprintf(stderr, "utk: Editor started in %ds (none was running)\n", int(time.Since(started).Seconds()))
+	return 0
+}
+
+// unityBinFor: $UNITY_BIN, else the project's pinned version under the Hub's default install folder, else any installed one
+// (the same order as unity-test.sh).
+func unityBinFor(project string) string {
+	if b := os.Getenv("UNITY_BIN"); b != "" {
+		return b
+	}
+	ver := ""
+	if data, err := os.ReadFile(filepath.Join(project, "ProjectSettings", "ProjectVersion.txt")); err == nil {
+		for _, l := range strings.Split(string(data), "\n") {
+			if f := strings.Fields(l); len(f) == 2 && f[0] == "m_EditorVersion:" {
+				ver = f[1]
+			}
+		}
+	}
+	var roots []string
+	switch runtime.GOOS {
+	case "darwin":
+		roots = []string{"/Applications/Unity/Hub/Editor"}
+	case "windows":
+		roots = []string{`C:\Program Files\Unity\Hub\Editor`}
+	default:
+		roots = []string{filepath.Join(os.Getenv("HOME"), "Unity", "Hub", "Editor")}
+	}
+	tail := map[string]string{"darwin": "Unity.app/Contents/MacOS/Unity", "windows": `Editor\Unity.exe`}[runtime.GOOS]
+	if tail == "" {
+		tail = "Editor/Unity"
+	}
+	for _, r := range roots {
+		cands := []string{filepath.Join(r, ver)}
+		if all, _ := filepath.Glob(filepath.Join(r, "*")); len(all) > 0 {
+			cands = append(cands, all...)
+		}
+		for _, c := range cands {
+			if ver == "" && c == filepath.Join(r, ver) {
+				continue
+			}
+			if b := filepath.Join(c, tail); fileExists(b) {
+				return b
+			}
+		}
+	}
+	return ""
+}
+
+func fileExists(p string) bool { st, err := os.Stat(p); return err == nil && !st.IsDir() }
 
 func waitGone(pid int, budget time.Duration) bool {
 	for deadline := time.Now().Add(budget); editor.alive(pid); time.Sleep(restartStep) {
