@@ -130,6 +130,12 @@ func (c *cycle) runEditorRefresh() bool {
 		}
 		return false
 	}
+	if ok, msg := c.ensureReloaded(); !ok {
+		for _, r := range append(compiles, tests...) {
+			c.finish(r, "FAIL", 1, out+"\n"+msg)
+		}
+		return false
+	}
 	for _, r := range compiles {
 		c.finish(r, "PASS", 0, "COMPILE OK\n"+out)
 	}
