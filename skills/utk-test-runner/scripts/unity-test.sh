@@ -26,7 +26,7 @@
 #   csproj files only list the .cs files the Editor knew at its last project sync: a new .cs is added to the csproj of its
 #   assembly for this build (NEW-CS <assembly> <file>, nearest .asmdef, else Assembly-CSharp[-Editor]); one whose assembly has
 #   no csproj is reported NOT-IN-CSPROJ and is compiled only by the next Editor job (utk editor refresh). A .cs deleted since
-#   the sync still fails the build (its csproj lists it): refresh once.
+#   the sync is dropped from this build (GONE-CS <assembly> <file>; its csproj still lists it, no refresh needed).
 # Unity binary: $UNITY_BIN if set, else the project's pinned version under
 # /Applications/Unity/Hub/Editor (macOS Hub default), else any installed.
 # Timeout: $UNITY_TIMEOUT seconds (default 1200) via timeout/gtimeout if present.
@@ -114,9 +114,11 @@ offline_mode() { # <repo> [--tests [<filter>]]
     rm -f "$NEWT"
     NEWLINES=$(git ls-files -co --exclude-standard -- 'Assets/*.cs' | python3 -c '
 import sys, os, glob, re, json
-listed = set()
+listed = set(); gone = {}
 for p in glob.glob("*.csproj"):
-    listed.update(m.replace("\\", "/") for m in re.findall(r"<Compile Include=\"([^\"]+)\"", open(p, encoding="utf-8-sig").read()))
+    for m in re.findall(r"<Compile Include=\"([^\"]+)\"", open(p, encoding="utf-8-sig").read()):
+        listed.add(m.replace("\\", "/"))
+        if m.endswith(".cs") and not os.path.exists(m.replace("\\", "/")): gone.setdefault(p[:-7], []).append(m)   # deleted since the Editor last synced the csproj
 def project(f):
     d = os.path.dirname(f)
     while d.startswith("Assets"):
@@ -131,9 +133,14 @@ for f in sys.stdin.read().split("\n"):
     p = project(f)
     if p and os.path.exists(p + ".csproj"): add.setdefault(p, []).append(f)
     else: print("NOT-IN-CSPROJ", f)
-if add:
+if add or gone:
     with open("Temp/utk-new-cs.targets", "w") as t:
         t.write("<Project>\n")
+        for p, fs in gone.items():
+            t.write("  <ItemGroup Condition=\"\x27$(MSBuildProjectName)\x27==\x27%s\x27\">\n" % p)
+            for f in fs:
+                t.write("    <Compile Remove=\"%s\" />\n" % f.replace("&", "&amp;")); print("GONE-CS", p, f.replace("\\", "/"))
+            t.write("  </ItemGroup>\n")
         for p, fs in add.items():
             t.write("  <ItemGroup Condition=\"\x27$(MSBuildProjectName)\x27==\x27%s\x27\">\n" % p)
             for f in fs:
