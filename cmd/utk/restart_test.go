@@ -103,12 +103,38 @@ func TestRestartEditor_HungEditorNeedsForce(t *testing.T) {
 	}
 }
 
-func TestRestartEditor_NoEditorIsAnError(t *testing.T) {
-	fakeEditor(t, "", false, false)
+// No Editor running (after a crash): restart launches the project's Unity itself and waits until it answers, without a guard
+// or a quit (nothing to lose), under the restart marker.
+func TestRestartEditor_NoEditorStartsOne(t *testing.T) {
+	steps := fakeEditor(t, "", false, false)
 	editor.find = func(string) (int, string) { return 0, "" }
+	editor.bin = func(string) string { return "/Apps/Unity-6000" }
 	var errb bytes.Buffer
-	if code := restartEditor("/p", false, &errb); code != 1 || !strings.Contains(errb.String(), "no running Editor") {
+	if code := restartEditor("/p", false, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if got := strings.Join(*steps, " | "); got != "marker-on | start /Apps/Unity-6000 /p | ready" {
+		t.Fatalf("steps: %s", got)
+	}
+	if restartInProgress() || !strings.Contains(errb.String(), "none was running") {
+		t.Fatalf("marker left or no message: %s", errb.String())
+	}
+}
+
+func TestRestartEditor_NoEditorAndNoUnityBinaryIsAnError(t *testing.T) {
+	steps := fakeEditor(t, "", false, false)
+	editor.find = func(string) (int, string) { return 0, "" }
+	editor.bin = func(string) string { return "" }
+	var errb bytes.Buffer
+	if code := restartEditor("/p", false, &errb); code != 1 || !strings.Contains(errb.String(), "UNITY_BIN") || len(*steps) != 0 {
+		t.Fatalf("exit %d steps %v: %s", code, *steps, errb.String())
+	}
+}
+
+func TestUnityBinFor_UnityBinWins(t *testing.T) {
+	t.Setenv("UNITY_BIN", "/x/Unity")
+	if got := unityBinFor("/p"); got != "/x/Unity" {
+		t.Fatalf("got %q", got)
 	}
 }
 
