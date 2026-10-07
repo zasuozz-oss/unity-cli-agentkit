@@ -962,3 +962,31 @@ func TestGateCompilesANewCsFileTheCsprojDoesNotListYet(t *testing.T) {
 		t.Fatalf("gate failed on a new .cs: ok=%v\n%s", ok, out)
 	}
 }
+
+// A .cs deleted since the last Editor project sync (its csproj still lists it) must not fail the gate with CS2001: the gate
+// drops it from that build (My-Game, removing a probe file, 2026-10-07).
+func TestGateIgnoresADeletedCsFileTheCsprojStillLists(t *testing.T) {
+	if _, err := exec.LookPath("dotnet"); err != nil {
+		t.Skip("dotnet not installed")
+	}
+	skills, _ := filepath.Abs("../../skills")
+	t.Setenv("UTK_SKILLS_DIR", skills)
+	p := t.TempDir()
+	w := func(rel, s string) {
+		t.Helper()
+		os.MkdirAll(filepath.Dir(filepath.Join(p, rel)), 0o755)
+		if err := os.WriteFile(filepath.Join(p, rel), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w("G.csproj", `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><OutputPath>Temp/bin/Debug/</OutputPath></PropertyGroup><ItemGroup><Compile Include="Assets\A.cs" /><Compile Include="Assets\Gone.cs" /></ItemGroup></Project>`)
+	w("G.slnx", `<Solution><Project Path="G.csproj" /></Solution>`)
+	w("Assets/A.cs", "class A { int F() => 1; }\n") // Assets/Gone.cs is listed by the csproj but not on disk
+	if out, err := exec.Command("git", "-C", p, "init", "-q").CombinedOutput(); err != nil {
+		t.Skipf("git init: %v %s", err, out)
+	}
+	ok, out := gateCompile(p)
+	if !ok || !strings.Contains(out, "GONE-CS G Assets/Gone.cs") {
+		t.Fatalf("gate failed on a deleted .cs: ok=%v\n%s", ok, out)
+	}
+}
