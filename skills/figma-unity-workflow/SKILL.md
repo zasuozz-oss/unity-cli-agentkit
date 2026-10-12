@@ -16,8 +16,10 @@ Before telling the user "I can't reach Figma" or "you need to run plugin X":
 
 1. `figma-cli status` (and `figma-cli list`) — the CLI exports straight from
    Figma Desktop over CDP; **no Figma plugin run is needed** (`unity_export`).
-2. Look for an importer in the project (`FigmaHeadlessImporter`, an
-   `Assets/*Figma*` folder, `Tools/*figma*`).
+2. Look for an importer in the project (`FigmaImporter.Live.FigmaQuickImport`,
+   an `Assets/*Figma*` folder, `Tools/*figma*`). With the FigmaImporter package,
+   import through `FigmaQuickImport.ImportForAgent` — the Import Selected Node
+   flow that stays diff-syncable — see the `unity-figma-cli` skill.
 3. Only a `status` failure is a real blocker — report it and hand back.
 
 Never infer the workflow from a README or a script header comment alone.
