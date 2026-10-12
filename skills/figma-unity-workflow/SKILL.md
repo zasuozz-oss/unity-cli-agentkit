@@ -112,8 +112,8 @@ three correction rounds when the agent kept resizing the frame instead.
 - ✅ 9-slice insets from a measured corner+glow width; importer border set.
 - ✅ Every placed text: inner-area rect + auto-size with a floor.
 - ✅ Reused imported sprite with `sprite.border != 0` → `Image.type = Sliced`.
-- ✅ Figma "Button"-tagged nodes get `UnityEngine.UI.Button` + `onClick` by hand
-  (importer skips the tag for now).
+- ✅ Every Button: `onClick` wired + the project's button animation component (the
+  importer adds `UI.Button` on build, not on a diff-sync of older nodes).
 - ❌ **NEVER** hide a design element because server data is missing.
 - ❌ **NEVER** invent a card style, colour or font for a game that already has
   a design family. Ask.
