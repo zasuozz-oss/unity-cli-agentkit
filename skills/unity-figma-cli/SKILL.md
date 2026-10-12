@@ -59,6 +59,11 @@ utk exec 'var p = GameObject.Find("<Name>/Panel");
 3. Clean up **in place** on the imported objects: rename and add components freely.
    **Never flatten or reparent** imported wrappers. **Hide (`SetActive(false)`) sample
    content, don't delete it** — a deleted node is reported "Unresolved" on every sync.
+   Sample content means duplicate list cells and mock values, not design elements — see
+   "Default state = the design" below.
+   - **Figma nodes tagged "Button" are skipped by the importer** (`utk console` warns
+     `unknown component "Button"`). Add `UnityEngine.UI.Button` to each and wire `onClick`
+     yourself. (Temporary — drop this once the importer maps the tag.)
 4. Attach scripts, wire fields, then save through the importer, not `PrefabUtility`:
 
 ```sh
@@ -73,6 +78,9 @@ the prefab directly. Large change → redo the flow in a new temp scene, re-wire
 `SaveAsPrefab` over the same path (GUID kept). `rebuild: true` throws the tree away — renames
 and wiring with it.
 
+- **Reusing an imported sprite elsewhere (a list-cell prefab, a copied prefab) → check
+  `sprite.border` first.** Imported sprites are often 9-slice crops (e.g. 72×72, border ≠ 0);
+  a non-zero border needs `Image.type = Sliced`, or the crop stretches as one picture.
 - **`sync.Cleaned` may list other nodes' records** whose sprite folder and root are both
   gone. That is valid housekeeping — mention it, don't undo it.
 - **Never use `FigmaHeadlessImporter`** (or build into a temp prefab and flatten/copy the
@@ -263,6 +271,22 @@ Capture both and look:
 figma-cli get_screenshot --node <frame-id> --max 0 -o /tmp/fig/design.png
 utk screenshot --max 0
 ```
+
+Take the Unity side **in Play mode** — that is the state that ships.
+
+**Default state = the design.** Every element in the frame (model art, discount badge,
+struck-through price, secondary button) shows by default with the design's content. Server
+data only **overwrites** it; never hide an element because the server has no value yet.
+Hide only on the user's explicit decision, and record that decision in the report.
+
+**Node checklist before "done".** Walk every visible node of the design (the importer's
+`manifest.json` or a `list_nodes` dump) and confirm it is still visible in Unity, with the
+right shape and position. "Done" only when no line is off; a line off because server data is
+missing is named in the report, not hidden.
+
+**Dim/mask alpha comes from the design** (e.g. `#1F1F1F` @ 0.9). Pass it to the project's
+popup animation helper explicitly — helpers carry their own default alpha and wash the
+backdrop out.
 
 `Read` the two PNGs. For anything the eye cannot settle — a 4px gap, a
 mis-anchored element — read the geometry back as numbers instead
