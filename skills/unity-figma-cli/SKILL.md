@@ -37,7 +37,9 @@ API (`FigmaImporter.Live.FigmaQuickImport`):
 
 - `ImportForAgent(GameObject parent = null, string nodeId = null, bool rebuild = false, string group = null)`
   → JSON **string** `{success, mode: built|rebuilt|synced, nodeId, rootPath, nodeFolder,
-  missingFonts[], prefabs[], sync, error}`. No log field — the build log is in `utk console`.
+  missingFonts[], prefabs[], nodes[], sync, error}`. `nodes[]` (every mode): `{figmaId,
+  figmaName, path, active, sprite, sliced}` — `path: null` = the object was deleted,
+  `sliced` = `sprite.border != 0`. No log field — the build log is in `utk console`.
   `nodeId: null` = the node selected in Figma; `group` = feature folder under the Sprite
   Folder, used only when the node has no record yet.
 - `SaveAsPrefab(GameObject root, string assetPath)` → `{success, prefabPath, guid,
@@ -61,9 +63,10 @@ utk exec 'var p = GameObject.Find("<Name>/Panel");
    content, don't delete it** — a deleted node is reported "Unresolved" on every sync.
    Sample content means duplicate list cells and mock values, not design elements — see
    "Default state = the design" below.
-   - **Figma nodes tagged "Button" are skipped by the importer** (`utk console` warns
-     `unknown component "Button"`). Add `UnityEngine.UI.Button` to each and wire `onClick`
-     yourself. (Temporary — drop this once the importer maps the tag.)
+   - **Figma "Button"-tagged nodes get `UnityEngine.UI.Button` on build/rebuild only**
+     (transition None, `targetGraphic` = the node's `Image` or its `__Image` child). A
+     diff-sync does not add it to nodes imported earlier. Either way, wire `onClick` and
+     add the project's button animation component yourself.
 4. Attach scripts, wire fields, then save through the importer, not `PrefabUtility`:
 
 ```sh
@@ -279,9 +282,9 @@ struck-through price, secondary button) shows by default with the design's conte
 data only **overwrites** it; never hide an element because the server has no value yet.
 Hide only on the user's explicit decision, and record that decision in the report.
 
-**Node checklist before "done".** Walk every visible node of the design (the importer's
-`manifest.json` or a `list_nodes` dump) and confirm it is still visible in Unity, with the
-right shape and position. "Done" only when no line is off; a line off because server data is
+**Node checklist before "done".** Walk `nodes[]` from the `ImportForAgent` result
+(manual route: a `list_nodes` dump): every node needs a non-null `path` and `active: true`
+unless the user decided to hide/delete it, and must look right — shape and position. "Done" only when no line is off; a line off because server data is
 missing is named in the report, not hidden.
 
 **Dim/mask alpha comes from the design** (e.g. `#1F1F1F` @ 0.9). Pass it to the project's
