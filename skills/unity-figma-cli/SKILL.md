@@ -1,6 +1,6 @@
 ---
 name: unity-figma-cli
-description: Use when a Figma design has to become Unity uGUI — `figma-cli unity_export` + `FigmaHeadlessImporter.Import`, or reading a frame's geometry, colors, text and auto-layout by hand, exporting sprites (9-slice, halos), building the RectTransform hierarchy through `utk`, or checking a built screen against the design across aspect ratios.
+description: Use when a Figma design has to become Unity uGUI — the FigmaImporter's Import Selected Node flow (`FigmaQuickImport.ImportForAgent`), or reading a frame's geometry, colors, text and auto-layout by hand, exporting sprites (9-slice, halos), building the RectTransform hierarchy through `utk`, or checking a built screen against the design across aspect ratios.
 ---
 
 # Figma → Unity uGUI
@@ -30,28 +30,38 @@ Start with `figma-cli status`. Every failure it reports needs a human
 
 | Project has | Route |
 |---|---|
-| the `FigmaImporter` package (`FigmaImporter.FigmaHeadlessImporter` resolves) | `figma-cli unity_export` → `FigmaHeadlessImporter.Import` — one call builds the whole prefab: anchors from `constraints`, pixel-measured 9-slice, TMP font matching, layout groups, sprite dedup |
+| the `FigmaImporter` package (`FigmaImporter.Live.FigmaQuickImport.ImportForAgent` resolves) | `ImportForAgent` — the **Import Selected Node** flow, blocking and dialog-free: runs figma-cli itself, builds the node (anchors from `constraints`, 9-slice, TMP font matching, sprite dedup) and records it so a re-run diff-syncs design changes |
 | no importer | the manual route: read geometry (below), export sprites, build with one `run_script` |
 
 ```sh
-figma-cli unity_export --params '{"nodeId":"<frame>","outputDir":"<abs>/.unity-figma/<frame>","scale":2}'
-utk exec 'return FigmaImporter.FigmaHeadlessImporter.Import("<abs>/.unity-figma/<frame>", "Prefab", "Assets/UI/Prefabs/", "Assets/UI/Sprites/");'
+utk exec 'var p = GameObject.Find("Canvas/Popups");
+  return FigmaImporter.Live.FigmaQuickImport.ImportForAgent(p, "<frame id or null = Figma selection>", false, "<FeatureGroup>");'
 ```
 
-`Import` returns a JSON **string**: `{success, rootName, textureCount, outputMode, log[]}`.
-Three things fail on a fresh project, all seen in real runs:
+It returns a JSON **string**: `{success, mode: built|rebuilt|synced, nodeId, rootPath,
+nodeFolder, missingFonts[], prefabs[], sync, error}`.
 
-- **TMP Essentials not imported** → `success:false`, `"TextMeshPro Essentials
-  are not imported"`. It is a one-time per-project import; do it before the
-  first import, not after the failure:
+- **Build in a saved scene, edit the imported root in place.** The sync ledger points at
+  the scene objects by `GlobalObjectId`; renames, added components and children survive a
+  re-sync, a reparented or deleted node does not (hide sample content instead).
+- **Save as prefab through `FigmaQuickImport.SaveAsPrefab(root, "<path>.prefab")`**, not
+  `PrefabUtility` — converting changes every `GlobalObjectId` and this call re-points the
+  ledger. Then save the scene.
+- **Pull a design change by running the same `ImportForAgent` call again** (`mode:
+  "synced"`). `rebuild: true` throws the tree away — your renames and wiring with it.
+- **Never build into a temp prefab and copy it** (`FigmaHeadlessImporter.Import` + copy):
+  that records nothing, so the next design change is a manual rebuild. `FigmaHeadlessImporter`
+  is only for a one-off build that never needs syncing.
+- **TMP Essentials not imported** → `success:false` with that message. One-time per
+  project, before the first import:
   `AssetDatabase.ImportPackage("Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage", false)`
   (older TMP-as-package projects: `Packages/com.unity.textmeshpro/...`).
-- **Destination folder missing** → `"Given path does not exist"`. The importer
-  does not create intermediate folders — `AssetDatabase.CreateFolder` each
-  segment first.
-- **`success:true` with `"Warning: … font \"X\" not found, using default"`**
-  in `log[]`. This is the silent font fallback below, caught for you — **read
-  `log[]` every time**; `success` alone says nothing about fonts.
+- **`success:true` with a non-empty `missingFonts`** — those labels rendered in the TMP
+  default and lost their effects. The importer already tried installed fonts and Google
+  Fonts; the rest needs the font file from the user. **Read `missingFonts` every time.**
+- Older importer DLLs have no `ImportForAgent` (`typeof(FigmaImporter.Live.FigmaQuickImport)
+  .GetMethod("ImportForAgent") == null`) — ask for an updated package; don't fall back to
+  the temp-prefab route silently.
 
 The rest of this skill is the manual route, and the mapping/verification rules
 apply to both.
