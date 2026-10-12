@@ -16,8 +16,12 @@ Before telling the user "I can't reach Figma" or "you need to run plugin X":
 
 1. `figma-cli status` (and `figma-cli list`) — the CLI exports straight from
    Figma Desktop over CDP; **no Figma plugin run is needed** (`unity_export`).
-2. Look for an importer in the project (`FigmaHeadlessImporter`, an
-   `Assets/*Figma*` folder, `Tools/*figma*`).
+2. Look for an importer in the project (`FigmaImporter.Live.FigmaQuickImport`,
+   an `Assets/*Figma*` folder, `Tools/*figma*`). With the FigmaImporter package,
+   import through `FigmaQuickImport.ImportForAgent` into a saved temp scene,
+   clean up in place (no flatten/reparent; hide samples, don't delete), save with
+   `FigmaQuickImport.SaveAsPrefab`, then delete the scene — see `unity-figma-cli`.
+   Never `FigmaHeadlessImporter`.
 3. Only a `status` failure is a real blocker — report it and hand back.
 
 Never infer the workflow from a README or a script header comment alone.
@@ -86,6 +90,13 @@ three correction rounds when the agent kept resizing the frame instead.
 
 ## 5. Verify like the user will
 
+- **Default state matches the design**: every element in the frame shows with the design's
+  content; server data only overwrites it, never hides it. Hiding needs the user's explicit
+  decision, written in the report.
+- **Play-mode screenshot next to the Figma render, then a per-node checklist** — every
+  visible design node present, right shape, right position (`unity-figma-cli` → "Verify").
+  Lines off for missing server data go in the report, not `SetActive(false)`.
+- Dim/mask alpha = the design's value, passed to the project's animation helper.
 - Numbers first (`utk-exec-query`: rect sizes, text `isTextOverflowing`,
   `preferredWidth` vs rect width), then screenshots.
 - Aspect sweep including the narrow end: 9:16, 9:19.5, 9:20, 9:21, 9:22, 9:23
@@ -100,6 +111,10 @@ three correction rounds when the agent kept resizing the frame instead.
 - ✅ New popup = instance of an existing authored frame + new content.
 - ✅ 9-slice insets from a measured corner+glow width; importer border set.
 - ✅ Every placed text: inner-area rect + auto-size with a floor.
+- ✅ Reused imported sprite with `sprite.border != 0` → `Image.type = Sliced`.
+- ✅ Every Button: `onClick` wired + the project's button animation component (the
+  importer adds `UI.Button` on build, not on a diff-sync of older nodes).
+- ❌ **NEVER** hide a design element because server data is missing.
 - ❌ **NEVER** invent a card style, colour or font for a game that already has
   a design family. Ask.
 - ❌ **NEVER** report UI "done" from the design resolution alone.

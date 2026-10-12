@@ -1,6 +1,6 @@
 ---
 name: unity-figma-cli
-description: Use when a Figma design has to become Unity uGUI — `figma-cli unity_export` + `FigmaHeadlessImporter.Import`, or reading a frame's geometry, colors, text and auto-layout by hand, exporting sprites (9-slice, halos), building the RectTransform hierarchy through `utk`, or checking a built screen against the design across aspect ratios.
+description: Use when a Figma design has to become Unity uGUI — the FigmaImporter's Import Selected Node flow (`FigmaQuickImport.ImportForAgent`), or reading a frame's geometry, colors, text and auto-layout by hand, exporting sprites (9-slice, halos), building the RectTransform hierarchy through `utk`, or checking a built screen against the design across aspect ratios.
 ---
 
 # Figma → Unity uGUI
@@ -30,28 +30,75 @@ Start with `figma-cli status`. Every failure it reports needs a human
 
 | Project has | Route |
 |---|---|
-| the `FigmaImporter` package (`FigmaImporter.FigmaHeadlessImporter` resolves) | `figma-cli unity_export` → `FigmaHeadlessImporter.Import` — one call builds the whole prefab: anchors from `constraints`, pixel-measured 9-slice, TMP font matching, layout groups, sprite dedup |
+| the `FigmaImporter` package (`FigmaImporter.Live.FigmaQuickImport.ImportForAgent` resolves) | `ImportForAgent` — the **Import Selected Node** flow, blocking and dialog-free: runs figma-cli itself, builds the node (anchors from `constraints`, 9-slice, TMP font matching, sprite dedup) and records it (scene-map, import record, node folder, prefab reuse) |
 | no importer | the manual route: read geometry (below), export sprites, build with one `run_script` |
 
+API (`FigmaImporter.Live.FigmaQuickImport`):
+
+- `ImportForAgent(GameObject parent = null, string nodeId = null, bool rebuild = false, string group = null)`
+  → JSON **string** `{success, mode: built|rebuilt|synced, nodeId, rootPath, nodeFolder,
+  missingFonts[], prefabs[], nodes[], sync, error}`. `nodes[]` (every mode): `{figmaId,
+  figmaName, path, active, sprite, sliced}` — `path: null` = the object was deleted,
+  `sliced` = `sprite.border != 0`. No log field — the build log is in `utk console`.
+  `nodeId: null` = the node selected in Figma; `group` = feature folder under the Sprite
+  Folder, used only when the node has no record yet.
+- `SaveAsPrefab(GameObject root, string assetPath)` → `{success, prefabPath, guid,
+  relinked[], error}`. Re-points the scene-map and `RootGlobalId` after the convert;
+  saving over an existing prefab path keeps its GUID.
+
+**The flow — a temp scene, no workbench scene left in the repo:**
+
+1. Create and save a temp scene (e.g. `Assets/_FigmaImportTemp.unity`, never in Build
+   Settings). The root must live in a **saved** scene — records use `GlobalObjectId`;
+   Prefab Mode is not supported.
+2. Build the popup shell (Canvas + Panel, mirroring the game's popups), then import into it:
+
 ```sh
-figma-cli unity_export --params '{"nodeId":"<frame>","outputDir":"<abs>/.unity-figma/<frame>","scale":2}'
-utk exec 'return FigmaImporter.FigmaHeadlessImporter.Import("<abs>/.unity-figma/<frame>", "Prefab", "Assets/UI/Prefabs/", "Assets/UI/Sprites/");'
+utk exec 'var p = GameObject.Find("<Name>/Panel");
+  return FigmaImporter.Live.FigmaQuickImport.ImportForAgent(p, "<frame id or null = Figma selection>", false, "<FeatureGroup>");'
 ```
 
-`Import` returns a JSON **string**: `{success, rootName, textureCount, outputMode, log[]}`.
-Three things fail on a fresh project, all seen in real runs:
+3. Clean up **in place** on the imported objects: rename and add components freely.
+   **Never flatten or reparent** imported wrappers. **Hide (`SetActive(false)`) sample
+   content, don't delete it** — a deleted node is reported "Unresolved" on every sync.
+   Sample content means duplicate list cells and mock values, not design elements — see
+   "Default state = the design" below.
+   - **Figma "Button"-tagged nodes get `UnityEngine.UI.Button` on build/rebuild only**
+     (transition None, `targetGraphic` = the node's `Image` or its `__Image` child). A
+     diff-sync does not add it to nodes imported earlier. Either way, wire `onClick` and
+     add the project's button animation component yourself.
+4. Attach scripts, wire fields, then save through the importer, not `PrefabUtility`:
 
-- **TMP Essentials not imported** → `success:false`, `"TextMeshPro Essentials
-  are not imported"`. It is a one-time per-project import; do it before the
-  first import, not after the failure:
+```sh
+utk exec 'return FigmaImporter.Live.FigmaQuickImport.SaveAsPrefab(GameObject.Find("<Name>"), "<path>.prefab");'
+```
+
+5. Verify in Play, then delete the temp scene. Commit only the prefab and the sprite folder.
+
+**After a Figma change.** The temp scene is gone, so in-place diff sync is gone too:
+`ImportForAgent` on the same node gives `mode: "built"` — a new tree. Small change → edit
+the prefab directly. Large change → redo the flow in a new temp scene, re-wire, and
+`SaveAsPrefab` over the same path (GUID kept). `rebuild: true` throws the tree away — renames
+and wiring with it.
+
+- **Reusing an imported sprite elsewhere (a list-cell prefab, a copied prefab) → check
+  `sprite.border` first.** Imported sprites are often 9-slice crops (e.g. 72×72, border ≠ 0);
+  a non-zero border needs `Image.type = Sliced`, or the crop stretches as one picture.
+- **`sync.Cleaned` may list other nodes' records** whose sprite folder and root are both
+  gone. That is valid housekeeping — mention it, don't undo it.
+- **Never use `FigmaHeadlessImporter`** (or build into a temp prefab and flatten/copy the
+  wrapper): it writes no record, node folder or prefab reuse and ignores the project's
+  sprite/font folders and feature groups.
+- **TMP Essentials not imported** → `success:false` with that message. One-time per
+  project, before the first import:
   `AssetDatabase.ImportPackage("Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage", false)`
   (older TMP-as-package projects: `Packages/com.unity.textmeshpro/...`).
-- **Destination folder missing** → `"Given path does not exist"`. The importer
-  does not create intermediate folders — `AssetDatabase.CreateFolder` each
-  segment first.
-- **`success:true` with `"Warning: … font \"X\" not found, using default"`**
-  in `log[]`. This is the silent font fallback below, caught for you — **read
-  `log[]` every time**; `success` alone says nothing about fonts.
+- **`success:true` with a non-empty `missingFonts`** — those labels rendered in the TMP
+  default and lost their effects. The importer already tried installed fonts and Google
+  Fonts; the rest needs the font file from the user. **Read `missingFonts` every time.**
+- Older importer DLLs have no `ImportForAgent` (`typeof(FigmaImporter.Live.FigmaQuickImport)
+  .GetMethod("ImportForAgent") == null`) — ask for an updated package; don't fall back to
+  `FigmaHeadlessImporter` silently.
 
 The rest of this skill is the manual route, and the mapping/verification rules
 apply to both.
@@ -227,6 +274,22 @@ Capture both and look:
 figma-cli get_screenshot --node <frame-id> --max 0 -o /tmp/fig/design.png
 utk screenshot --max 0
 ```
+
+Take the Unity side **in Play mode** — that is the state that ships.
+
+**Default state = the design.** Every element in the frame (model art, discount badge,
+struck-through price, secondary button) shows by default with the design's content. Server
+data only **overwrites** it; never hide an element because the server has no value yet.
+Hide only on the user's explicit decision, and record that decision in the report.
+
+**Node checklist before "done".** Walk `nodes[]` from the `ImportForAgent` result
+(manual route: a `list_nodes` dump): every node needs a non-null `path` and `active: true`
+unless the user decided to hide/delete it, and must look right — shape and position. "Done" only when no line is off; a line off because server data is
+missing is named in the report, not hidden.
+
+**Dim/mask alpha comes from the design** (e.g. `#1F1F1F` @ 0.9). Pass it to the project's
+popup animation helper explicitly — helpers carry their own default alpha and wash the
+backdrop out.
 
 `Read` the two PNGs. For anything the eye cannot settle — a 4px gap, a
 mis-anchored element — read the geometry back as numbers instead
