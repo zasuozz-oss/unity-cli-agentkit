@@ -18,8 +18,10 @@ Before telling the user "I can't reach Figma" or "you need to run plugin X":
    Figma Desktop over CDP; **no Figma plugin run is needed** (`unity_export`).
 2. Look for an importer in the project (`FigmaImporter.Live.FigmaQuickImport`,
    an `Assets/*Figma*` folder, `Tools/*figma*`). With the FigmaImporter package,
-   import through `FigmaQuickImport.ImportForAgent` — the Import Selected Node
-   flow that stays diff-syncable — see the `unity-figma-cli` skill.
+   import through `FigmaQuickImport.ImportForAgent` into a saved temp scene,
+   clean up in place (no flatten/reparent; hide samples, don't delete), save with
+   `FigmaQuickImport.SaveAsPrefab`, then delete the scene — see `unity-figma-cli`.
+   Never `FigmaHeadlessImporter`.
 3. Only a `status` failure is a real blocker — report it and hand back.
 
 Never infer the workflow from a README or a script header comment alone.
