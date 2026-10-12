@@ -30,28 +30,54 @@ Start with `figma-cli status`. Every failure it reports needs a human
 
 | Project has | Route |
 |---|---|
-| the `FigmaImporter` package (`FigmaImporter.Live.FigmaQuickImport.ImportForAgent` resolves) | `ImportForAgent` — the **Import Selected Node** flow, blocking and dialog-free: runs figma-cli itself, builds the node (anchors from `constraints`, 9-slice, TMP font matching, sprite dedup) and records it so a re-run diff-syncs design changes |
+| the `FigmaImporter` package (`FigmaImporter.Live.FigmaQuickImport.ImportForAgent` resolves) | `ImportForAgent` — the **Import Selected Node** flow, blocking and dialog-free: runs figma-cli itself, builds the node (anchors from `constraints`, 9-slice, TMP font matching, sprite dedup) and records it (scene-map, import record, node folder, prefab reuse) |
 | no importer | the manual route: read geometry (below), export sprites, build with one `run_script` |
 
+API (`FigmaImporter.Live.FigmaQuickImport`):
+
+- `ImportForAgent(GameObject parent = null, string nodeId = null, bool rebuild = false, string group = null)`
+  → JSON **string** `{success, mode: built|rebuilt|synced, nodeId, rootPath, nodeFolder,
+  missingFonts[], prefabs[], sync, error}`. No log field — the build log is in `utk console`.
+  `nodeId: null` = the node selected in Figma; `group` = feature folder under the Sprite
+  Folder, used only when the node has no record yet.
+- `SaveAsPrefab(GameObject root, string assetPath)` → `{success, prefabPath, guid,
+  relinked[], error}`. Re-points the scene-map and `RootGlobalId` after the convert;
+  saving over an existing prefab path keeps its GUID.
+
+**The flow — a temp scene, no workbench scene left in the repo:**
+
+1. Create and save a temp scene (e.g. `Assets/_FigmaImportTemp.unity`, never in Build
+   Settings). The root must live in a **saved** scene — records use `GlobalObjectId`;
+   Prefab Mode is not supported.
+2. Build the popup shell (Canvas + Panel, mirroring the game's popups), then import into it:
+
 ```sh
-utk exec 'var p = GameObject.Find("Canvas/Popups");
+utk exec 'var p = GameObject.Find("<Name>/Panel");
   return FigmaImporter.Live.FigmaQuickImport.ImportForAgent(p, "<frame id or null = Figma selection>", false, "<FeatureGroup>");'
 ```
 
-It returns a JSON **string**: `{success, mode: built|rebuilt|synced, nodeId, rootPath,
-nodeFolder, missingFonts[], prefabs[], sync, error}`.
+3. Clean up **in place** on the imported objects: rename and add components freely.
+   **Never flatten or reparent** imported wrappers. **Hide (`SetActive(false)`) sample
+   content, don't delete it** — a deleted node is reported "Unresolved" on every sync.
+4. Attach scripts, wire fields, then save through the importer, not `PrefabUtility`:
 
-- **Build in a saved scene, edit the imported root in place.** The sync ledger points at
-  the scene objects by `GlobalObjectId`; renames, added components and children survive a
-  re-sync, a reparented or deleted node does not (hide sample content instead).
-- **Save as prefab through `FigmaQuickImport.SaveAsPrefab(root, "<path>.prefab")`**, not
-  `PrefabUtility` — converting changes every `GlobalObjectId` and this call re-points the
-  ledger. Then save the scene.
-- **Pull a design change by running the same `ImportForAgent` call again** (`mode:
-  "synced"`). `rebuild: true` throws the tree away — your renames and wiring with it.
-- **Never build into a temp prefab and copy it** (`FigmaHeadlessImporter.Import` + copy):
-  that records nothing, so the next design change is a manual rebuild. `FigmaHeadlessImporter`
-  is only for a one-off build that never needs syncing.
+```sh
+utk exec 'return FigmaImporter.Live.FigmaQuickImport.SaveAsPrefab(GameObject.Find("<Name>"), "<path>.prefab");'
+```
+
+5. Verify in Play, then delete the temp scene. Commit only the prefab and the sprite folder.
+
+**After a Figma change.** The temp scene is gone, so in-place diff sync is gone too:
+`ImportForAgent` on the same node gives `mode: "built"` — a new tree. Small change → edit
+the prefab directly. Large change → redo the flow in a new temp scene, re-wire, and
+`SaveAsPrefab` over the same path (GUID kept). `rebuild: true` throws the tree away — renames
+and wiring with it.
+
+- **`sync.Cleaned` may list other nodes' records** whose sprite folder and root are both
+  gone. That is valid housekeeping — mention it, don't undo it.
+- **Never use `FigmaHeadlessImporter`** (or build into a temp prefab and flatten/copy the
+  wrapper): it writes no record, node folder or prefab reuse and ignores the project's
+  sprite/font folders and feature groups.
 - **TMP Essentials not imported** → `success:false` with that message. One-time per
   project, before the first import:
   `AssetDatabase.ImportPackage("Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage", false)`
@@ -61,7 +87,7 @@ nodeFolder, missingFonts[], prefabs[], sync, error}`.
   Fonts; the rest needs the font file from the user. **Read `missingFonts` every time.**
 - Older importer DLLs have no `ImportForAgent` (`typeof(FigmaImporter.Live.FigmaQuickImport)
   .GetMethod("ImportForAgent") == null`) — ask for an updated package; don't fall back to
-  the temp-prefab route silently.
+  `FigmaHeadlessImporter` silently.
 
 The rest of this skill is the manual route, and the mapping/verification rules
 apply to both.
