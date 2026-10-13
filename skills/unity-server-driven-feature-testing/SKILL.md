@@ -23,6 +23,9 @@ never promised.
   **before** implementation.
 - Lock the open decisions with the user (what resets, what is permanent, what
   shows when) and write them down.
+- **A sentence describing an observed state may be a bug report, not a
+  requirement.** "X is still in owned" can mean "that is wrong" — confirm which
+  before building it.
 - Plan the debug tool and a mock data source in the first phase, so UI work
   does not wait for the backend.
 
@@ -92,6 +95,14 @@ never promised.
 - **Never trust array order from a list API.** "Server-configured, don't
   hardcode values" does not mean the order is stable. Sort explicitly by the
   field that defines order, and put unset values in a defined place.
+  **Dump the real payload (with a timestamp) and check order and direction
+  before writing any sort/ordering logic**, and prefer an explicit sort field
+  over implicit array order. Seen: a hair-sort feature took ~15 rounds because
+  the export flipped order three times in a day.
+- **A mutable content export that reuses the same version/URL under an
+  immutable CDN cache (e.g. 24h) is a server-side bug** — clients keep the old
+  copy while new ones get the new one. Flag it to the backend with the dumped
+  timestamps; don't chase it in client code.
 - **Past rows can change state.** Config edited mid-run (a day-3 gift
   changed while the user is on day 6) can flip an old row from `claimed` back
   to `claimable`. Celebrate only the milestone equal to the current counter,

@@ -46,6 +46,11 @@ output exists.
    trigger matches? every param present? type matches Data Type? value inside
    the enum table? double-fire? Record a verdict: `OK` / `FIX-CODE` /
    `FIX-SHEET` (plan is wrong about behaviour the product wants) / `ASK`.
+   Label every finding **"sheet wants"** vs **"code does"**. A requested sheet
+   change has not been made: warn only about the risk of *adopting* it, never
+   describe it as if the code already did it (user: "đã làm đâu mà ảnh hưởng").
+   Auditing many events with subagents → split by **event group**, one
+   subagent per group.
 4. **Fix code + test** — one fix at a time, patterns below. Compile, run
    tests (Verify). No sheet write until the code it describes is green.
 5. **Update the sheet (guarded)** — `scripts/guarded_write.gs`: verify column
@@ -100,6 +105,8 @@ No API key, no service account, no OAuth grant made by the agent.
 - **Inserting/deleting rows in the enum tab** shifts every
   `#gid=…&range=…` link in the main tab → re-point those links afterwards
   (the dump lists them).
+- **Try a formatting experiment on ONE event first** (borders, merges, fills),
+  look at it, and revert it cleanly if wrong, before touching the rest.
 - **Inserted rows** lose the event block's border and the vertical merge
   (e.g. Version) → redraw the block border and extend the merge.
 - Keep the plan inside SDK limits. Firebase: event/param name ≤ 40 chars,
@@ -114,7 +121,7 @@ are not a change log. The user has rewritten these by hand more than once.
 - No prefixes or history: no `Fix code:`, `Fix sheet:`, `Lưu ý:`, `Note:`,
   "trước đó… nay…", "previously… now…", "đã gắn", "đã sửa", "event mới".
 - Do not repeat what another column already says (Data Type, Values…).
-- Empty is fine — no caveat, no note.
+- Empty is fine — no caveat, no note. Only caveats or open issues belong here, never an action log.
 
 | Wrong | Right |
 |---|---|
@@ -134,6 +141,10 @@ Does one user action produce two events? Usual causes:
 | Same trigger/flag raised from several UI paths (popup A and popup B both call it) | log at the single point every path converges on |
 | Two entry points start one flow (list adapter + grid adapter); the second is rejected but still logs | log inside the flow runner (e.g. its `RunAsync`) after it actually starts, not at the call site |
 | An "end" event guarded by a completion flag that is set late → fires again next time | guard with its own `_endLogged` flag set in the same statement that logs |
+
+A trigger is defined by the **user action**, not SDK readiness. Seen: an
+ad-request event fires on every button tap even when no ad is loaded; don't
+gate it on the ad being ready.
 
 Prove it: count calls per action in a test or a Play-mode log; don't argue
 it from reading.

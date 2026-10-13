@@ -72,6 +72,11 @@ These hold for any arrangement the game uses:
   edge on the **narrowest aspect** (9:20–9:23), not only at the design size.
   Seen: a corner ✕ touched the edge on 9:20 until the popup body was scaled down
   (1600/1920 → 1500/1920) to leave ~40 units.
+- **Art that deliberately bleeds off screen** (a model/character image) is
+  excluded from fit/margin calculations with a marker component on that node
+  (e.g. `PopupFitIgnore`), not compensated with a per-popup canvas-width hack.
+  Seen: `designCanvasWidth` bumped to 760 for one popup so a badge was not cut
+  at 9:23. Verify each popup at 9:16 / 9:18 / 9:23 with screenshots.
 - **No overlaps** between siblings the design keeps apart. Fix with the
   design's spacing, not by shrinking fonts.
 - **Button label = button rect minus padding** (stretch anchors, offsets for an

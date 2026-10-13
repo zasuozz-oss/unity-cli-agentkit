@@ -260,6 +260,8 @@ layout has not been computed yet.
 
 Symptom: hole and hand positions hardcoded in canvas coordinates.
 
+- Recompute the hole/hand from the target's RectTransform **at runtime**, every
+  time it shows — a baked rect misaligns after any fit change.
 - Compute the hole from the real target: its world corners → screen point via
   the **target** canvas's camera → local point in the **overlay** canvas.
   Helpers that pass a `null` camera break for `ScreenSpace-Camera` canvases.
@@ -294,13 +296,22 @@ child container instead of recomputing the ratio a second time.
    false positives.
 4. **Small Game views lie by resolution.** At ~300 px wide, 2 canvas units is
    about 1 view pixel — "I see no change" can be resolution, not a bug. Read the
-   runtime values before editing again.
+   runtime values before editing again. A margin the user states in pixels
+   ("2px each side at 9:23") is **screen** pixels: convert with the canvas
+   `scaleFactor` (units = px / scaleFactor) and check it numerically.
+   Seen: a 308×788 Game view made 2 units ≈ 1 px, so "no visible change" was a
+   measurement artifact.
 5. **Fill every state with fake data.** Inject runtime data so every tab and
    list is populated; force hidden sections (first-time-user headers, empty
    states) active and reparent them into their runtime container to measure.
    Restore afterwards, and **never touch saved user progress**.
 6. **Focus-mask shaders** may render magenta or not at all in utk screenshots.
    Verify holes by reading the mask material's centre/size vectors.
+7. **Regression matrix after every fit change.** Screenshot 9:23, 9:22, 9:20,
+   9:16 and 3:4 (tablet); only aspects narrower than the design may change.
+8. **Sweep every panel and popup in one pass** with a checklist, instead of
+   waiting for the user to name the next broken screen. Seen: fixing screen by
+   screen took ~25 rounds.
 
 ## 4. Editor gotchas
 

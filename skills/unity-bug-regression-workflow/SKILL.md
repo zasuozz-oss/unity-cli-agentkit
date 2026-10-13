@@ -31,7 +31,11 @@ No fix is written until the bug has been **seen failing on the current code**, b
 | **Logic repro** (preferred) | The fault lives in C# logic that can run without the scene: calculations, state machines, parsers, routing, save data | Write a test that feeds the report's inputs and asserts the *expected* behaviour (`@unity-editmode-tests`), then run it with `utk run_tests --mode editor --filter <TestName>`. It must **fail with the report's symptom** — a compile error or an unrelated assert is not a repro. For a one-off check, call the method directly with `utk exec` (`@utk-exec-query`). |
 | **Editor repro** | The fault needs the scene, UI, timing, animation or input | Follow the STR in Play Mode through `@utk-playmode-driving`, then capture evidence: `utk console --type error` (`@utk-console-triage`), `utk exec` reading the wrong value from live state, and a `utk screenshot`. |
 
-**A plausible root cause from reading code is not a repro.** Navigation/state bugs usually have several paths that reach the same symptom, and the one you reasoned out is often not the one the user hit. Also confirm **which class really backs the screen** (inspect the live panel with `utk exec`, not a similarly named controller) and name it in the report.
+**A plausible root cause from reading code is not a repro.** Navigation/state bugs usually have several paths that reach the same symptom, and the one you reasoned out is often not the one the user hit. Also confirm **which class really backs the screen** (inspect the live panel with `utk exec`, not a similarly named controller) and name it in the report. Seen: read `UserVideoDetailsController` while the screen used `PublicVideoDetailsController`.
+
+**Walk the user's exact flow.** Replay the report's steps in Play Mode in order, including the way out; a shortened path often hides the bug. Seen: a coin bar was wrong only after Home → Profile → Look → back → close.
+
+**State the status before any edit:** write `Reproduced` or `Not reproduced` in the reply. A cause you could not reproduce is a **hypothesis** and must be labelled so in the report, never presented as the root cause.
 
 Before touching code, write down the repro: the exact commands or steps, the observed result, and the expected result. That record is the proof the bug existed.
 
@@ -52,6 +56,7 @@ After the fix, run **the same repro** again and show that it now passes. A logic
 - ✅ After fixing, re-run the ORIGINAL bug's repro (it must now pass) plus the previous regression's STR.
 - ✅ Save the root cause as a lesson when the bug class is reusable (timing race, recycled state, error-route collapse).
 - ❌ **NEVER** write a fix before the bug has failed in front of you (failing test or Editor repro), and never call a fix done without re-running that repro.
+- ❌ **NEVER** edit before saying "Reproduced" or "Not reproduced"; an unreproduced cause is a hypothesis, not a finding.
 - ❌ **NEVER** treat a popup/badge/state bug as "a simple one-liner" — these classes regress the most.
 - ❌ **NEVER** close a task without recording why the previous fix failed, if it did.
 

@@ -41,6 +41,8 @@ Recycled list views (OSA / `SimpleDataHelper`, or custom recyclers) reuse cell G
 - ✅ Before calling a recycler fix verified, re-run the **exact** reported repro steps, not only a synthetic before/after test. A synthetic test can pass while a second, independent cause remains.
 - ✅ A guard inside the recycler's `Update`/`LateUpdate` that skips the tick when internal state is null (and logs once) is a firewall, not a root-cause fix. Say so, and keep the diagnostic log that will explain the lifecycle desync next time.
 - ✅ When a grid is off-centre, compare the viewport's anchors with sibling panels before touching cell alignment. Avoid force-expanding cell width or centring cells in a row, because both distort a lone last-row item.
+- ✅ A short last row must not get bigger cells than full rows. The recycler drops empty-cell placeholders from layout (`ignoreLayout`) while full rows shrink on narrow aspects: reserve the empty cells' space, and fix it once in the shared base grid adapter, not per grid.
+- ✅ Derive the grid column count from the available width, not a fixed cell width. Seen: a fixed width left a 144px gap at 3:4 and 12% distortion on narrow screens.
 - ✅ Mark edits inside vendored recycler code with a comment, so they survive the next vendor upgrade.
 - ❌ **NEVER** apply an async-loaded texture directly to the cell without an ownership check.
 - ❌ **NEVER** set conditional UI (badges, stars, sale tags) only in the success branch — explicitly hide them in the else branch too.

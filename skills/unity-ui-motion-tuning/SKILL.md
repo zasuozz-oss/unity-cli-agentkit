@@ -149,7 +149,14 @@ would ship and say what the others looked like. One exchange instead of eight:
   this screen's own design. A shared dim alpha multiplied over a sprite that
   already bakes its own alpha gives neither value (0.8 × 0.75 = 0.6).
 - **Particles: randomize per particle, not per burst**, when the design shows
-  varied sizes/speeds.
+  varied sizes/speeds. Express size, lifetime, speed and fade as **random
+  ranges** (min..max), and keep **launch speed separate from float speed** so
+  tuning one does not move the other.
+- **A trail that follows a moving label is driven by the label's own tween**
+  (sample its position/progress), never by a separate timer — two clocks drift.
+- **A hop with a fixed travel time gets no easing.** Easing reshapes the
+  velocity and the arrival time the design pinned; use `Linear` or tween the
+  arc with explicit keyframes.
 - **Write the final numbers down** (in the tunables class, with a comment). A
   later "change it back" without a record turns into git archaeology.
 
@@ -178,6 +185,18 @@ filmstrip plus the measured values (`anchoredPosition`, scale, alpha per frame,
 read in the same exec that scrubs) and ask which frame is wrong. Keep the
 scrub/contact-sheet script in the project (e.g. `AgentScripts/`) instead of
 retyping it each session.
+
+- **Snapshot before every change.** Keep the previous values as a named
+  snapshot (e.g. a `V3_Prev` block or a commented line with a label in the
+  tunables class) so "back to the previous version" is one step, never a
+  whole-file revert that also throws away unrelated work. Seen: an FX pass took
+  ~40 rounds of "slower / faster / revert to before".
+- **Particle/trail work: render a frame strip and compare before editing.**
+  Look at the current result frame by frame first, then change.
+- **Translate a vague adjective into ONE measurable parameter and confirm it**
+  instead of changing several on a guess: "khựng" = stutter (a velocity dip or
+  hold at a frame), "cưỡng chế quỹ đạo" = forced path (the trail is snapped to
+  a line instead of following the motion). Say "I read it as X, changing only Y".
 
 ## Related Skills
 - `@unity-dotween-safety` — tween lifecycle: `SetLink`, `DOKill`, leak rules.

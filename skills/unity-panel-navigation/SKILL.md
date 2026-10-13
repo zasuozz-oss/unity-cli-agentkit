@@ -26,6 +26,7 @@ Panels that participate in a navigation back-stack must pop their stack entry th
 - ✅ **Always** route ALL close paths through one handler that pops the nav entry (e.g. `NavigationManager.TryBack(this)`).
 - ✅ Wire the draggable's `onBeforeClose` hook to that handler: return `false` when nav handled the close (suppress the component's own close), `true` to let the normal drag-close animation run.
 - ✅ Mirror button-close side effects (pause video, restore HUD elements) in the drag-close fallback path.
+- ✅ Shared HUD (currency bar, bottom nav) visibility has **one owner** that derives it from navigation state/events (e.g. on full-screen panel closed, deferred one frame). Panels never hide/show it themselves. Seen: 20+ panels toggled the coin bar and one back path skipped the restore, so the bar stayed hidden.
 - ✅ Guard entry points: re-opening the same panel for the same target must focus/refresh the existing instance, not stack a new one.
 - ✅ Make "navigate to self" a no-op (e.g. tapping a profile link while already on that profile).
 - ❌ **NEVER** add a new close gesture/path without checking what the button close does to the nav stack.
