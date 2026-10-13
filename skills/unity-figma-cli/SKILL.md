@@ -35,13 +35,18 @@ Start with `figma-cli status`. Every failure it reports needs a human
 
 API (`FigmaImporter.Live.FigmaQuickImport`):
 
-- `ImportForAgent(GameObject parent = null, string nodeId = null, bool rebuild = false, string group = null)`
+- `ImportForAgent(GameObject parent = null, string nodeId = null, bool rebuild = false, string group = null, bool shareCommon = false)`
   → JSON **string** `{success, mode: built|rebuilt|synced, nodeId, rootPath, nodeFolder,
   missingFonts[], prefabs[], nodes[], sync, error}`. `nodes[]` (every mode): `{figmaId,
   figmaName, path, active, sprite, sliced}` — `path: null` = the object was deleted,
   `sliced` = `sprite.border != 0`. No log field — the build log is in `utk console`.
   `nodeId: null` = the node selected in Figma; `group` = feature folder under the Sprite
-  Folder, used only when the node has no record yet.
+  Folder, used only when the node has no record yet. Sprite dedup is by content: a sprite
+  already in `<Sprite Folder>/Shared_Common/Sprites` or `<group>/Shared_<group>/Sprites` is
+  reused in place, and a duplicate between two nodes of the same group is promoted to
+  `Shared_<group>`. A duplicate of ANOTHER group's sprite is kept as a local copy unless
+  `shareCommon: true` (then it is moved to `Shared_Common`, GUID kept); the console lists
+  those sprites either way — read it when the game already has a shared folder.
 - `SaveAsPrefab(GameObject root, string assetPath)` → `{success, prefabPath, guid,
   relinked[], error}`. Re-points the scene-map and `RootGlobalId` after the convert;
   saving over an existing prefab path keeps its GUID.
