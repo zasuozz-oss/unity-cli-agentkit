@@ -20,7 +20,7 @@ Before telling the user "I can't reach Figma" or "you need to run plugin X":
    an `Assets/*Figma*` folder, `Tools/*figma*`). With the FigmaImporter package,
    import through `FigmaQuickImport.ImportForAgent` into a saved temp scene,
    clean up in place (no flatten/reparent; hide samples, don't delete), save with
-   `FigmaQuickImport.SaveAsPrefab`, then delete the scene — see `unity-figma-cli`.
+   `FigmaQuickImport.SaveAsPrefab`, then delete the scene — follow the `figma-build` skill.
    Never `FigmaHeadlessImporter`.
 3. Only a `status` failure is a real blocker — report it and hand back.
 
@@ -96,7 +96,7 @@ three correction rounds when the agent kept resizing the frame instead.
 - **Play-mode screenshot next to the Figma render, then a per-node checklist** — every
   visible design node present, right shape, right position (`unity-figma-cli` → "Verify").
   Lines off for missing server data go in the report, not `SetActive(false)`.
-- Dim/mask alpha = the design's value, passed to the project's animation helper.
+- Behaviour (popup animation, dim alpha, fit) follows the project's other popups, not Figma.
 - Numbers first (`utk-exec-query`: rect sizes, text `isTextOverflowing`,
   `preferredWidth` vs rect width), then screenshots.
 - Aspect sweep including the narrow end: 9:16, 9:19.5, 9:20, 9:21, 9:22, 9:23
@@ -122,6 +122,7 @@ three correction rounds when the agent kept resizing the frame instead.
 ## Related Skills
 
 - `unity-figma-cli` — export, mapping, importer, distortion audit (read first)
+- `figma-build` — the importer route end to end (`ImportForAgent` → prefab)
 - `figma-cli` — the CLI itself
 - `unity-ugui-layout` — canvas setup, TMP rules, HUD scaling
 - `unity-ui-narrow-aspect-fit` — the narrow-aspect sweep and fixes
