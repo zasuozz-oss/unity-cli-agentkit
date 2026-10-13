@@ -367,6 +367,7 @@ skills above/below before adding its own rules):
 
 | Skill | When to use |
 |---|---|
+| `figma-build` | Figma node → prefab through the FigmaImporter (`ImportForAgent` in a temp scene, cleanup in place, `SaveAsPrefab`, node-by-node verify) |
 | `figma-unity-workflow` | Figma → Unity UI order of work: tool discovery, reuse authored frames, 9-slice sizing, text fit, world-space clipping |
 | `unity-replace` | Replacing an existing sprite with re-made art (Figma/AI): same path, `.meta`/GUID kept, fit to the old pixel size |
 | `unity-runtime-ui-rules` | Runtime uGUI: reactive layout, re-pointing after refit, `overrideSorting`, nested canvases, lifting UI above a dim |
