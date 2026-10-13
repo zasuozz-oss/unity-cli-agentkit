@@ -65,6 +65,14 @@ bind/redraw ran. Numbers settle the cause:
   fixed box (e.g. 135×135): size the **container**, stretch the `Image` inside
   it (anchors 0–1, `sizeDelta` 0), keep `preserveAspect` on, and never call
   `SetNativeSize()`.
+- **Exception: server/CMS art replacing a design placeholder**, exported on the
+  same canvas size as the design art — show it at native size, anchored like
+  the default art. Do not crop to alpha bounds or re-centre (that shifted the
+  image ~86px against the design default). Otherwise crop-then-fit with
+  `preserveAspect`, bottom-anchored.
+- Use `Image`, not `RawImage`, for server art slots. Keep the slot on the design
+  default until the final image is ready; never chain several different-size
+  images through one slot.
 - Under a layout group, the **root** of the cell is what the group sizes. A cell
   whose root is smaller than the intended box (while the image is bigger)
   reads as an aspect bug but is a layout bug.

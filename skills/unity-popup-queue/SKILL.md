@@ -73,6 +73,11 @@ Back-stack navigation (back button, drag-to-close, stacking the same panel) is
   direction: logout runs `PlayerPrefs.DeleteAll()`, an upgrade from a build
   that never wrote the key, a reinstall — and the popup silently never shows.
   Re-evaluate on account switch. Test by deleting the local key in Play.
+- **Once-only / once-per-session gating**: persist a "has ever shown" flag that
+  logout / reset-local-data does not wipe. Set it only after the check passes,
+  not at check start. Handle users upgrading from a build that never had the
+  flag, and reset the flag in the Editor after changing its design, before
+  testing.
 - **A popup opened only as a backdrop for a notice closes with it.** If a rule
   opens screen A just to show notice B on top, B's close closes A too —
   otherwise one event costs the player two dismissals.
@@ -125,6 +130,10 @@ Back-stack navigation (back button, drag-to-close, stacking the same panel) is
 
 ## 9. Verify
 
+- Instantiate a new popup under the **same popup canvas / sorting layer** as the
+  existing ones. Seen: a new popup rendered behind the main menu and was
+  invisible in the real flow.
+- Verify from the real entry scene / launch flow, never an empty scene.
 - For every popup rule you touched: first show, second dispatch in the same
   session, after a scene reload, after reinstall or with the local flag cleared,
   and with the popup killed mid-animation.
