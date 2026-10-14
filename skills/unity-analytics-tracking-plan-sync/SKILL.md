@@ -83,17 +83,37 @@ No API key, no service account, no OAuth grant made by the agent.
 - **The user signs in to Google themselves.** Never type, read, or store a
   password; never click an OAuth consent/"Allow" screen — hand that to the
   user and wait.
-- Open the sheet's bound Apps Script (Extensions → Apps Script) in a browser
-  driven by `agent-browser` (CDP). First line of every script:
-  `/** @OnlyCurrentDoc */` — limits the permission to this one file.
-- Load code into the editor:
-  `monaco.editor.getModels()[0].setValue(<JSON.stringify(code)>)`, then click
-  **Save**. Take the Save/Run button refs from a **fresh snapshot every time**
-  — refs change between loads.
-- **A failed Save click means the OLD script runs.** Before Run: reload,
-  confirm the editor shows your code and the function dropdown shows the
-  function you mean. Then Run, read the output from the execution log panel
-  ("Execution log" / "Nhật ký thực thi").
+- **Two browsers, never one.** Driving the user's visible window raises it to
+  the front on every `open` / `tab` switch and steals their focus.
+  - **View window** — headed, the user's own profile
+    (`agent-browser --headed --session <PROFILE> --profile ~/.agent-browser/profiles/<PROFILE> open <sheet-url>`).
+    Open it once, when the user asks to look. After that **do not touch it**:
+    no `open`, no `tab`, no `eval`, no screenshot. Sheet edits show up there
+    live (Sheets is collaborative), no reload needed.
+  - **Work browser** — headless clone of that profile, does all Apps Script
+    load/save/run:
+    ```bash
+    rsync -a --delete --exclude 'Singleton*' --exclude '*/Cache/*' \
+      --exclude '*/Code Cache/*' --exclude '*/GPUCache/*' \
+      ~/.agent-browser/profiles/<PROFILE>/ ~/.agent-browser/profiles/<PROFILE>-bg/
+    agent-browser --session <PROFILE>-bg --profile ~/.agent-browser/profiles/<PROFILE>-bg open <apps-script-url>
+    agent-browser --session <PROFILE>-bg eval 'typeof monaco'   # "object" = signed in
+    ```
+    The clone carries the Google login. If Google asks the clone to sign in
+    again, stop and hand it to the user — never type credentials.
+  - To screenshot for your own check, use the work browser (open the sheet
+    in a second tab there), not the view window.
+- Open the sheet's bound Apps Script (Extensions → Apps Script). First line of
+  every script: `/** @OnlyCurrentDoc */` — limits the permission to this one file.
+- Load code with `scripts/as_load.sh <file.gs>`: `monaco…setValue`, click
+  **Save** by `aria-label` (Save shortcut keys leak stray text into the
+  code), wait, then **assert editor content === file**. Keyboard/IME state can
+  prepend stray text (`lại `, `t`) to the saved file; the script then fails at
+  load (`ReferenceError … Code.gs:1`) and nothing runs. Mismatch → reload
+  content and save again, never Run.
+- **A failed Save means the OLD script runs.** `scripts/as_run.sh <fn>` checks
+  the function dropdown shows `<fn>` before clicking Run, then polls the
+  execution log ("Execution log" / "Nhật ký thực thi") for done/error.
 - Finite timeouts; at most ~3 attempts per step, then stop and report.
 - Save every script you run as `<SCRIPT_DIR>/partNN_<purpose>.gs`.
 
