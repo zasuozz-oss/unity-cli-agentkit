@@ -39,7 +39,7 @@ output exists.
 1. **Discover (code)** — find `<EVENT_LOGGER_CLASS>`, `<EVENT_NAME_SOURCE>`,
    every call site (`grep -rn "<EVENT_LOGGER_CLASS>\.\w*(" Assets`). Build a
    map `event → [file:line, params sent, C# type of each value]`.
-2. **Dump the sheet** — run `scripts/dump_sheet.gs` (below). Output: header
+2. **Dump the sheet** — run `dump_sheet.gs` from the `google-sheet-apps-script` skill. Output: header
    row → column map **by header text**, one record per event block with its
    real sheet row numbers, merged ranges, and the enum tab values.
 3. **Audit each event** — for every event row (skip section rows): fired?
@@ -53,7 +53,7 @@ output exists.
    subagent per group.
 4. **Fix code + test** — one fix at a time, patterns below. Compile, run
    tests (Verify). No sheet write until the code it describes is green.
-5. **Update the sheet (guarded)** — `scripts/guarded_write.gs`: verify column
+5. **Update the sheet (guarded)** — `guarded_write.gs` (`google-sheet-apps-script` skill): verify column
    ← `V` for `OK`, Notes per the Notes rules, plan corrections for `FIX-SHEET`.
    Every write is keyed on (row + expected cell values); mismatch = SKIP + log.
 6. **Report** — table below.
@@ -78,53 +78,13 @@ output exists.
 
 ## Access: Apps Script in the user's browser
 
-No API key, no service account, no OAuth grant made by the agent.
-
-- **The user signs in to Google themselves.** Never type, read, or store a
-  password; never click an OAuth consent/"Allow" screen — hand that to the
-  user and wait.
-- **Two browsers, never one.** Driving the user's visible window raises it to
-  the front on every `open` / `tab` switch and steals their focus.
-  - **View window** — headed, the user's own profile
-    (`agent-browser --headed --session <PROFILE> --profile ~/.agent-browser/profiles/<PROFILE> open <sheet-url>`).
-    Open it once, when the user asks to look. After that **do not touch it**:
-    no `open`, no `tab`, no `eval`, no screenshot. Sheet edits show up there
-    live (Sheets is collaborative), no reload needed.
-  - **Work browser** — headless clone of that profile, does all Apps Script
-    load/save/run:
-    ```bash
-    rsync -a --delete --exclude 'Singleton*' --exclude '*/Cache/*' \
-      --exclude '*/Code Cache/*' --exclude '*/GPUCache/*' \
-      ~/.agent-browser/profiles/<PROFILE>/ ~/.agent-browser/profiles/<PROFILE>-bg/
-    agent-browser --session <PROFILE>-bg --profile ~/.agent-browser/profiles/<PROFILE>-bg open <apps-script-url>
-    agent-browser --session <PROFILE>-bg eval 'typeof monaco'   # "object" = signed in
-    ```
-    The clone carries the Google login. If Google asks the clone to sign in
-    again, stop and hand it to the user — never type credentials.
-  - To screenshot for your own check, use the work browser (open the sheet
-    in a second tab there), not the view window.
-- Open the sheet's bound Apps Script (Extensions → Apps Script). First line of
-  every script: `/** @OnlyCurrentDoc */` — limits the permission to this one file.
-- Load code with `scripts/as_load.sh <file.gs>`: `monaco…setValue`, click
-  **Save** by `aria-label` (Save shortcut keys leak stray text into the
-  code), wait, then **assert editor content === file**. Keyboard/IME state can
-  prepend stray text (`lại `, `t`) to the saved file; the script then fails at
-  load (`ReferenceError … Code.gs:1`) and nothing runs. Mismatch → reload
-  content and save again, never Run.
-- **A failed Save means the OLD script runs.** `scripts/as_run.sh <fn>` checks
-  the function dropdown shows `<fn>` before clicking Run, then polls the
-  execution log ("Execution log" / "Nhật ký thực thi") for done/error.
-- Finite timeouts; at most ~3 attempts per step, then stop and report.
-- Save every script you run as `<SCRIPT_DIR>/partNN_<purpose>.gs`.
+All browser and Apps Script mechanics — sign-in rules, the headless work
+browser vs the user's view window, load/save/run scripts, dump and guarded-write
+templates, merged cells, hyperlink shifts — live in the global
+**`google-sheet-apps-script`** skill. Load it before touching the sheet.
 
 ## Sheet-editing gotchas
 
-- **Merged cells**: pasting/copying a range that touches a merge fails or
-  scrambles it. Write cell by cell, skip `range.isPartOfMerge()` cells that
-  are not the merge's top-left, or only write into unmerged empty areas.
-- **Inserting/deleting rows in the enum tab** shifts every
-  `#gid=…&range=…` link in the main tab → re-point those links afterwards
-  (the dump lists them).
 - **Try a formatting experiment on ONE event first** (borders, merges, fills),
   look at it, and revert it cleanly if wrong, before touching the rest.
 - **Inserted rows** lose the event block's border and the vertical merge
@@ -227,8 +187,6 @@ Scripts: <SCRIPT_DIR>/partNN_*.gs
 
 ## Apps Script templates
 
-`scripts/dump_sheet.gs` — logs tabs, header map, every non-empty cell as
-`row|col|value`, merged ranges and cell hyperlinks. `scripts/guarded_write.gs`
-— applies a list of writes, each keyed on expected cell values, skipping and
-logging any mismatch or non-top-left merged cell. Edit only the `CONFIG`
-block at the top of each.
+`dump_sheet.gs` and `guarded_write.gs` are in the `google-sheet-apps-script`
+skill (`~/.claude/skills/google-sheet-apps-script/scripts/`). Edit only the
+`CONFIG` block at the top of each.
