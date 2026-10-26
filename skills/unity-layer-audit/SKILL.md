@@ -43,6 +43,11 @@ Plus:
   tinted the cards it was placed behind. When a UI element ignores its
   sibling order, read the shader's/material's queue before touching orders.
 
+- **An extra/overlay camera that films models renders a dedicated layer**, with
+  its `cullingMask` limited to it. FX left on Default in the main scene leak
+  into it (a looping spark FX showed as a green flash). Check every extra
+  camera's culling mask before hunting UI images.
+
 ## 2. Keep ONE ladder, in code
 
 Every game gets a single source of truth for draw order — a static class of

@@ -22,11 +22,22 @@ ls ~/Library/Application\ Support/Spine/updates       # installed editor version
 - **Always pass `-u <version>`** = the version the Unity runtime uses
   (`spine-unity` package / `skeleton.spine` in an exported JSON). Without it
   the launcher picks the newest, possibly a beta — a project saved by 4.3
-  doesn't open in 4.2 again.
+  doesn't open in 4.2 again. Same for opening the GUI: `$S -u 4.2.43 X.spine`.
 - Work on **copies under `/tmp`**, never on the `.spine` the user has open.
+- **Don't steal focus while the user works.** Every bare `$S` call pops a
+  GUI process to the front. Wrap it: `open -g -n --stdout $LOG --stderr $LOG
+  -a Spine --args -u 4.2.43 …` (absolute paths — `open` doesn't inherit the
+  cwd), then poll `$LOG` for `^Complete\.` with a timeout. Never `osascript`
+  activate or System Events clicks: the editor UI is OpenGL, Accessibility
+  sees only the window frame.
 - Don't `kill` a running editor (unsaved work). `osascript -e 'tell
   application "Spine" to quit'`; `User canceled (-128)` = a save prompt —
-  ask the user to quit it.
+  ask the user to quit it (Cmd+Q).
+- The editor holds the `.spine` in memory and won't see a rebuilt file. When
+  it is your own instance: `pkill -f "Spine -u 4.2.43 <proj>"`, relaunch with
+  the same `-u`, and tell the user not to save in the editor if they want the
+  next build. Importing JSON into an **existing** project **adds** another
+  skeleton — rebuild the project (`-r` to a new file) instead.
 
 | Task | Command |
 |---|---|
@@ -60,23 +71,40 @@ Set `packAtlas: null` when you only want data.
 - Generate keys in Python (sampled curves, ~15 keys/s, an envelope that is 0
   at both ends for a seamless loop), add to `animations` in the exported
   JSON, import with `-r` into a `/tmp` project.
+- `drawOrder` keys are **not** "slot index + offset": Spine places the offset
+  slots, then fills the rest from the **end**; two offsets landing on one
+  index make the import fail, and the CLI may normalise/drop entries. Compute
+  offsets from the full target slot order you want, then check the render.
 - Verify by **rendering**, not by reading JSON: PNG settings from the
   template with `animation`, `skin`, `fps`, `scale`; on macOS set
   `"msaa": 0` (render fails otherwise). A `MISSING` attachment in the render
-  = an attachment path not found under the images folder.
-- Ship to Unity: export binary with nonessential off, then **round-trip
-  check** — convert the new `.skel` back to JSON and assert old animations,
-  bones, slots and skins are identical to the current Unity file, and only
-  the new animation differs. Then the code side: the animation name in
-  `SetAnimation`.
+  = a path not found under the images folder **or** a huge images folder
+  (thousands of files hit the open-file limit): render against a trimmed
+  images dir holding only the files the JSON references before hunting
+  path typos.
+- Judge motion by numbers, not static frames — see
+  [animation-qa.md](animation-qa.md) (motion metrics, retargeting between
+  rigs, iteration hygiene).
+- Ship to Unity: **never ship a Spine-re-exported `.skel` of a partial
+  skeleton** (item/outfit skins stored elsewhere) — import drops setup-pose
+  attachment names the file's own skins don't hold. A round-trip JSON diff
+  is blind to it (the baseline went through the same lossy import). Splice
+  the animation bytes into the original instead (global skill
+  `editing-spine-skel-binaries`, `splice_anim.py`), then verify at runtime:
+  `SetSkin(combined)` + `SetSlotsToSetupPose`, count slots with an
+  attachment old vs new (must match); a much smaller binary = red flag. Then
+  the code side: the animation name in `SetAnimation`.
 
 ## Rules
 
 - ✅ `-u` pinned to the runtime version, every call.
 - ✅ Bounded runs (`perl alarm`), output to a file, grep for `error|complete`.
-- ✅ Round-trip compare before replacing any `.skel.bytes` in Unity.
+- ✅ Runtime slot-attachment count + file size check before replacing any
+  `.skel.bytes` in Unity; back up the original outside `Assets/`.
 - ❌ Don't open/save the user's project with a newer editor version.
-- ❌ Don't hand-edit `.skel` binaries — go through JSON.
+- ❌ Don't hand-edit `.skel` binaries, and don't ship a `.skel` → JSON →
+  binary re-export — splice (`editing-spine-skel-binaries`) or rebuild from
+  the full, current `.spine`.
 
 ## Related Skills
 

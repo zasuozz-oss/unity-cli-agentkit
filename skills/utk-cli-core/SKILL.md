@@ -89,7 +89,12 @@ wastes tokens on the envelope, undeduped console entries, and full tool schemas.
   argument `--project-path /x`, refused as an unknown flag — `cd` into the
   project instead, or write `--project-path "$PWD"`. Same trap for
   `set -- $wh` (use `${=wh}`). BSD `sed -i` needs `''`; for C# edits prefer a
-  python replace that asserts the old text occurs exactly once.
+  python replace that asserts the old text occurs exactly once (`assert old in s`);
+  BSD `sed -i ''` can silently no-op a script. Same for `git add $F` with
+  `F="a b"` — use arrays or explicit lists.
+- **`pgrep -f pattern` in a wait loop matches its own command line** and never
+  ends: write `[p]attern`, or take a PID and `wait` on it, and always set a
+  deadline.
 - Anything that can run past ~2 minutes (`build`, `run_tests` on an assembly,
   `editor refresh` after a big change) goes to the background the same way.
   Never wrap a `utk` status verb in `for … sleep` — the blocking verbs exist so
@@ -131,6 +136,10 @@ with `Unity -projectPath <project> -automated`. On a headless box, add
 serving the pipeline API.
 
 To launch (or reuse) an Editor with the flag: `<this skill>/scripts/unity-editor-open.sh <repo> [--headless]`.
+
+**No Editor running for this project** (`utk status` shows none reachable for it; `pgrep -l Unity` — another project's Editor doesn't count) → launch it yourself, don't ask the user. Version from `ProjectSettings/ProjectVersion.txt`:
+`nohup /Applications/Unity/Hub/Editor/<ver>/Unity.app/Contents/MacOS/Unity -projectPath "$PWD" -automated >/tmp/unity_launch.log 2>&1 &`
+then a bounded `utk editor wait --timeout <S>`.
 
 ## Safe Mode: "can't connect" is not "no Editor"
 When the project has C# compile errors, the Editor boots into **Safe Mode**,
@@ -269,6 +278,13 @@ Sibling projects (same studio, copied code) look alike. Before editing, check
 for tuning/visual requests that don't name a file. Edited the wrong one?
 Reverse **only your own hunks** by hand; `git checkout <file>` also throws away
 the user's uncommitted work in that file.
+
+## Commit hygiene in a shared/dirty tree
+Other changes may already be staged (the user's, a peer agent's). Never `git add`
++ bare `git commit`: it sweeps them in (unrelated pre-staged deletions leaked
+into commits repeatedly). Run `git diff <file>` first to spot hunks that are not
+yours, commit with `git commit -m "…" -- <explicit paths>` (a pathspec commit
+ignores other staged files), then `git show --stat HEAD` to confirm.
 
 ## Setup
 Claude Code gets these skills and the kit's guidance from the

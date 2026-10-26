@@ -114,6 +114,20 @@ default UI shader unless ignoring hierarchy order is the point.
 Seen: a tutorial dim worked on a world-space popup but never darkened the
 ScreenSpaceCamera HUD; four wrong theories before the `Queue` tag was found.
 
+## 9. Gotchas
+
+- **TMP Strikethrough** draws from the font's underscore glyph: a hairline,
+  invisible on light backgrounds. Use a child `Image` line sized from
+  `textBounds`. Verify TMP visual issues by mesh/pixels, not the style flag.
+- **Extracting a scene object into a prefab:** bake the instance's
+  RectTransform overrides into the prefab root and verify in a second scene. A
+  lazily instantiated prefab with a "first wins, later Destroy" singleton
+  `Awake` destroys itself.
+- **Serialized scene/prefab values override changed C# field defaults** —
+  change the serialized value too.
+- **Localized text overflow:** enable TMP auto-size (min/max) and check the
+  longest language; check scene overrides before editing the prefab.
+
 ## Rules
 
 - ✅ Recompute on screen/safe-area/inset change; fire one `Changed` event.

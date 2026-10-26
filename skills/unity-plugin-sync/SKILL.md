@@ -50,6 +50,10 @@ UnityEditor.AssetDatabase.ExportPackage(paths, "GitIgnoredAssets.unitypackage",
 return "ok";
 ```
 
+- "Unity package" means a `.unitypackage`. When the project's Editor is not
+  connected, build one by hand: a tar.gz of `<guid>/asset`, `<guid>/asset.meta`,
+  `<guid>/pathname` keyed by the existing `.meta` GUIDs; verify by listing the
+  entries. Ask if unsure — don't rsync a folder instead.
 - Write the package where git ignores it (or outside the repo) — never commit it.
 - Tell the user it covers only ignored files; everything else comes from git.
 - If the other machine still fails, walk table 1 on *that* machine — the

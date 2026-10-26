@@ -38,6 +38,8 @@ failure is **treating a lossy intermediate as if it were the source**, or
 - ✅ A fixed-canvas compositor assumes **design-resolution** inputs. Keep the
   display-downscale path and the share/merge path separate, and **grep every
   caller** when you touch either — fixing one caller silently breaks the other.
+- ✅ Renaming raw `.png.bytes` into real images with a minimal hand-written `.meta` (keeping the GUID) imports them as **Cubemap**: the importer script must set `textureShape = Texture2D` and force reimport. Verify every meta; revert stray metas outside scope.
+- ✅ Decide mipmaps with data: texel density per screen, plus a same-frame A/B of 3 variants (no mip / mip + project `globalTextureMipmapLimit` / mip + limit 0). A project mip limit of 1 blurs fine detail once mips are enabled. Take a baseline screenshot first and measure memory before/after.
 - ❌ **NEVER** change the transcode target as a "quality fix" for an ETC1S asset.
 - ❌ **NEVER** feed an already-downscaled texture into a compositor that expects
   design resolution.

@@ -43,6 +43,10 @@ Recycled list views (OSA / `SimpleDataHelper`, or custom recyclers) reuse cell G
 - ✅ When a grid is off-centre, compare the viewport's anchors with sibling panels before touching cell alignment. Avoid force-expanding cell width or centring cells in a row, because both distort a lone last-row item.
 - ✅ A short last row must not get bigger cells than full rows. The recycler drops empty-cell placeholders from layout (`ignoreLayout`) while full rows shrink on narrow aspects: reserve the empty cells' space, and fix it once in the shared base grid adapter, not per grid.
 - ✅ Derive the grid column count from the available width, not a fixed cell width. Seen: a fixed width left a 144px gap at 3:4 and 12% distortion on narrow screens.
+- ✅ The same behavior may live in two adapter classes (e.g. a special grid for one tab). Before changing scroll/selection/default-target logic, grep all adapter subclasses and apply + verify on each, or state which tabs use which.
+- ✅ Collapsing header over an OSA grid: reserve the top inset in the adapter (`ContentPadding` / `ContentVirtualInsetFromViewportStart`, then `ScheduleForceRebuildLayout` after changing padding), draw the header over it and collapse from the normalized scroll. Forward Begin/Drag/End drag events from the header to the adapter, and keep any drag-to-close behavior at scroll top.
+- ✅ A full-width row inside a narrower masked viewport: use negative `RectMask2D` padding on the viewport instead of resizing the row.
+- ✅ Decorative graphics inside the content keep `raycastTarget` ON (no handler), so drags bubble to the `ScrollRect`.
 - ✅ Mark edits inside vendored recycler code with a comment, so they survive the next vendor upgrade.
 - ❌ **NEVER** apply an async-loaded texture directly to the cell without an ownership check.
 - ❌ **NEVER** set conditional UI (badges, stars, sale tags) only in the success branch — explicitly hide them in the else branch too.

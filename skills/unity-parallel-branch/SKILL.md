@@ -88,6 +88,14 @@ forever (no Git LFS). Options: split onto a branch+worktree
 Close the second Editor → `git worktree remove ../<Project>-<task>` →
 `git branch -d <branch>` (ask before any `-D`). Free the ~4 GB Library.
 
+## Peer agent sessions in the same working tree
+
+- Another session may be editing the same repo: `git log -8` + `git status` before saying something "is not implemented". Hand context to the peer (ListAgents/SendMessage) instead of duplicating its work.
+- Renaming a string constant: grep the tests too and run the related tests before committing.
+- "Pull" means `git fetch --all --prune` and `git branch -r --sort=-committerdate`, not only `origin/main`.
+- After a textual merge of `.unity` files, `git diff <pre-merge>..HEAD -- '*.cs'` for public fields the other side removed that your code still uses.
+- Scene conflict recipe: take theirs, redo your own edits in the Editor, verify the diff holds only float noise.
+
 ## Pitfalls
 
 - Port swap with two Editors — check `Application.dataPath` every time.

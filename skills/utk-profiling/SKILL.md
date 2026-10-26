@@ -65,6 +65,10 @@ device** before optimising further.
 5. A dev build carries overhead: treat its numbers as an upper bound; the
    ranking of markers is what matters.
 
+## Perceived hitch or flicker with flat frame time
+
+Profiler is clean but the user sees a hitch/flicker: pause, `EditorApplication.Step()` frame by frame, screenshot each and pixel-diff consecutive frames (this found a 1-frame attachment flash and a layer flicker). Editor profiles mislead for GC/JIT — confirm on device.
+
 ## Findings that came up repeatedly
 
 - `SpriteMeshGenerator.TraceShape/Simplify` under `Start()` → runtime

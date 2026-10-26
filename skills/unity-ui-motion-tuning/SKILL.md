@@ -154,6 +154,19 @@ would ship and say what the others looked like. One exchange instead of eight:
   tuning one does not move the other.
 - **A trail that follows a moving label is driven by the label's own tween**
   (sample its position/progress), never by a separate timer — two clocks drift.
+- **Overlap is judged by remaining distance, not time.** DOTween's default
+  OutQuad covers 75% of the distance at 50% of the time, so "start B 0.1 s
+  before A ends" still looks like a gap. Compute the offset from the remaining
+  %, or use Linear/InQuad on the overlapping segment; verify with a filmstrip.
+- **A tween started from an animation event runs on its own clock** and lags
+  the animator on a hitch. Drive the value from the animator's normalized time
+  in `LateUpdate`.
+- **Animator Write Defaults** returns a clip-toggled child to its prefab
+  default after the clip, so looped FX runs forever. Set the child inactive in
+  the prefab and check scene instances carry no override.
+- **Step transitions with animated characters:** wait for the current clip to
+  finish and settle to idle (bounded, e.g. 6 s max) before the next step; no
+  mid-clip cuts.
 - **A hop with a fixed travel time gets no easing.** Easing reshapes the
   velocity and the arrival time the design pinned; use `Linear` or tween the
   arc with explicit keyframes.
@@ -178,6 +191,11 @@ write the sequence. After that, scrub your sequence at the same timestamps
 and compare frame to frame. What comes back is a number to change, not "it
 doesn't look right".
 
+Runtime flows driven by coroutines or cameras cannot be scrubbed: slow-mo
+`Time.timeScale = 0.05..0.15` plus a screenshot loop, or a per-frame
+`EditorApplication.update` sampler of positions; build a contact sheet and
+compare with the reference frames. Restore `timeScale` to 1.
+
 ## When the rounds keep coming
 
 After ~3 correction rounds on the same motion, stop guessing. Send the user a
@@ -197,6 +215,10 @@ retyping it each session.
   instead of changing several on a guess: "khựng" = stutter (a velocity dip or
   hold at a frame), "cưỡng chế quỹ đạo" = forced path (the trail is snapped to
   a line instead of following the motion). Say "I read it as X, changing only Y".
+- **Before editing a transition, restate which layer/object changes** ("fade
+  the pink overlay earlier" is not "swap the BG"). For "slower", offer options
+  in % of the original (+25/+50/+75%) in the first answer and state your
+  reading (125% of the original vs +125%).
 
 ## Related Skills
 - `@unity-dotween-safety` — tween lifecycle: `SetLink`, `DOKill`, leak rules.

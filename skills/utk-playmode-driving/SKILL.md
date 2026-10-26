@@ -10,6 +10,8 @@ the Editor is not focused, the agent waits on a wall clock instead of a state,
 or it calls an API that belongs to the other mode. Each one below cost real
 sessions dozens of retries.
 
+Preflight, one line: is the Editor in Play, and is it the user's session? If so, do not stop it or touch their state (see "The Editor may be someone's game in progress").
+
 Shared Editor: put the steps below in a script and `utk queue submit shot --script <f.sh> --scene <path>`; the queue enters Play once for everyone and reloads your scene before your script (`UNITY_IN_PLAY=1` is set: do not play/stop yourself).
 
 ## An unfocused Editor barely runs frames
@@ -189,6 +191,8 @@ A compile queued while play mode runs waits for play mode to end — so
 utk editor stop; utk editor refresh && utk run_tests --mode editor
 ```
 
+**User is in Play and you changed C#:** the new code is not running. Say so FIRST and again as the last line of the report: do not test before stopping Play. After stop, poll `EditorApplication.isCompiling` (bounded) until false, then verify through the same entry path the user takes. Prefab/YAML edits (fileID wiring) still work while Play runs.
+
 Entering play, stopping and refreshing reload the domain. A call landing in
 that window ("Network error: An error occurred while sending the request",
 "Cannot connect …") is retried by `utk` for up to 30s, so `utk editor play;
@@ -203,8 +207,8 @@ Check these before debugging "impossible" runtime state:
 |---|---|---|
 | Errors from nowhere mid-Play: a singleton `Instance` is null, `Awake` state missing, a SmartFormat/`LocalizeStringEvent` "`null` is not a valid choice" | Scripts **recompiled while playing** (Preferences → Script Changes While Playing = Recompile And Continue). Statics and non-serialized fields are wiped | `Editor.log` has `Reloading assemblies after finishing script compilation` during the Play session. Re-enter Play; don't patch code for it |
 | Values your own earlier test set come back next Play (pinned timestamp, flag, cache); negative/stuck counters | **Domain reload on Enter Play is off**, so a static you set via `utk exec` survives Stop → Play | `EditorSettings.enterPlayModeOptions`. Restore every static you set; or `utk editor refresh` to force a reload. Suspect your own hack first. A project whose classes reset their statics in `[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]` methods is the mirror case: a static you set **before** `editor play` is wiped when Play starts — set it after |
-| Every DOTween/animation frozen, "scale still 0 after 1s" | `Time.timeScale == 0` (an ad SDK, a pause menu) and the tween isn't `SetUpdate(true)` | `return Time.timeScale;`. Set it to 1 for the test run; not a popup bug |
-| Timing measurement is wildly off | Editor is paused — an `exec` timeout or Error Pause left `isPaused = true` | `return EditorApplication.isPaused;` before measuring; unpause and re-measure |
+| Every DOTween/animation frozen, "scale still 0 after 1s" | `Time.timeScale == 0` (an ad SDK, a pause menu) and the tween isn't `SetUpdate(true)` | `return Time.timeScale;`. Set it to 1 for the test run; not a popup bug. If your run left it 0, restore 1 before leaving (shared Editor: the next session saw a game stuck on loading) |
+| Timing measurement is wildly off; `LateUpdate` stops, header/camera "doesn't move", a queue not advancing | Editor is paused — an `exec` timeout or **Error Pause** (fake data you injected logged an error) left `isPaused = true` | `return EditorApplication.isPaused;` right after injecting fake data and before measuring; unpause and re-measure |
 
 ## Game view resolution has no verb
 
@@ -262,6 +266,16 @@ that rewrites runtime state:
   Reset any debug static you set too (a forced hour, an "unlock all" flag). A test that called `PlayerPrefs.DeleteKey` in `SetUp`
   without restoring wiped a user's real progress on every `run_tests`
   (utk-test-runner → "Tests share the Editor").
+
+## Screen tour on a live game
+
+Screenshotting every screen of a running game on a real account:
+
+- **Never invoke Claim/Collect/Buy/Submit while probing** — server writes are irreversible (a daily gift got claimed). List display-only openers first.
+- Capture only after load/animation settles; close startup popup chains with their real close button.
+- Snapshot/restore any PlayerPrefs a popup writes; hide debug overlays and keep debug buttons outside the ad-banner safe area.
+- Edit-mode prefab renders are not screenshots of the game — use Play-mode captures with real data.
+- Reproduce from the user's screenshot literally: the screen they showed, the question they asked.
 
 ## Rules
 

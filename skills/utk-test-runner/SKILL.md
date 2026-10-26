@@ -64,6 +64,8 @@ the error inline — no refresh needed.
 
 `offline <repo> --tests [<filter>]` also runs the built EditMode test assemblies with NUnitLite on plain .NET, still without Unity. `<filter>` is a regex on the test's full name, like `run_tests --filter` (a class name is enough): `offline <repo> --tests CatchGameTests`. Tests that call native UnityEngine/UnityEditor code cannot run there and are counted as `SKIPPED-NEEDS-EDITOR`, not failures; only real failures exit 1 (a test that swallows the native error can still show as a false FAIL, e.g. a `JsonUtility` fixture decode: re-check it in the Editor). `no test matched filter` means the name is wrong, not that the tests passed.
 
+Offline build fails with missing reference DLLs (Editor in Play, `Library/` not populated)? Report "not compiled", never `COMPILE OK`: check the changed snippet through `utk exec` meanwhile and compile for real once Play is stopped. The offline NUnit runner needs .NET 10; with only .NET 9 the compile gate works but tests do not run — use `utk run_tests`.
+
 Use the Editor or batchmode only when offline cannot cover it (PlayMode, scenes/assets, tests that need the Unity runtime):
 `<this skill>/scripts/unity-test.sh compile|editmode|playmode <repo>` (batchmode; the Editor must be closed for that project).
 

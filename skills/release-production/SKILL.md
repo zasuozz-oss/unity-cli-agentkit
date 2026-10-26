@@ -49,6 +49,24 @@ description: Use when preparing, cutting, or tagging a production/release build 
 7. **Về dev:** `git checkout $DEV` → `utk editor refresh` → `python3 $S tidy` → `python3 $S check dev` phải OK, `utk exec` ở bước 5 trả package dev, `git status --porcelain` rỗng.
 8. **Báo cáo:** version, tag, commit hash, kết quả `check prod` / `check dev`. Build không nằm trong skill — nhắc user build từ `$PROD` (hoặc `utk build` nếu user yêu cầu).
 
+## Merge dev → prod không đổi branch (cây làm việc bẩn giữ nguyên)
+
+Dùng khi user chỉ bảo "push lên production" (đưa code dev sang prod, không ra version mới) mà cây làm việc đang có thay đổi chưa commit của user:
+
+```bash
+git fetch origin
+git rev-list --left-right --count origin/$PROD...$DEV      # behind/ahead
+T=$(git merge-tree --write-tree origin/$PROD $DEV) && C=$(git commit-tree "$T" -p origin/$PROD -p $DEV -m "Merge branch '$DEV' into $PROD")
+git diff --name-only origin/$PROD "$C"                       # không được chạm file nào trong bảng mã
+git branch -f $PROD "$C" && git push origin $PROD            # push theo tên branch
+```
+
+- `merge-tree` exit khác 0 (conflict) hoặc diff chạm file trong bảng mã → bỏ cách này, chạy đủ "Quy trình release".
+- Hook `rtk` biến `git push origin <sha>:refs/heads/x` thành refspec hỏng: push theo tên branch, hoặc `rtk proxy git push …`. Trong zsh viết `${c}`, không viết `$c:…` (`:r` là history modifier).
+- Thứ tự push: `$DEV` trước, rồi `$PROD`. User chỉ nói một branch → hỏi trước khi push cả hai. Chỉ push khi user yêu cầu trong chính tin nhắn hiện tại.
+- "Commit và push tất cả" vẫn phải quét rủi ro cây bẩn trước: `git diff ProjectSettings/ Assets/StreamingAssets/` tìm giá trị debug (vd `timeScale` bị commit), `.meta` đổi GUID, secret trong doc mới. Gom commit theo chủ đề; file config thì hỏi.
+- Máy build `git pull` abort "Your local changes … would be overwritten" trên file Unity tự sinh lại (xml/json adapter SDK quảng cáo, atlas font TMP động): lỗi nằm ở máy đó, đừng tìm ở máy mình. Bảo user chạy `git checkout -- <các file>` (hoặc stash) ở máy build rồi pull.
+
 ## Script kiểm tra những gì
 
 | Kiểm tra | Bắt được |

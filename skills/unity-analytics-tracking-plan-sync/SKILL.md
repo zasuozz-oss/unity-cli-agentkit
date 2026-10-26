@@ -93,6 +93,15 @@ templates, merged cells, hyperlink shifts — live in the global
   string value ≤ 100 chars, ≤ 25 params per event. Never design a param that
   concatenates a growing list (all steps, all items) — it truncates.
 
+- **Never overwrite the PM's own cells.** Proposals go into the agent column;
+  when a PM value is dropped/changed, keep the old text in the note
+  ("PM wrote: ...").
+- **Re-read the live sheet** after every write and before every claim that a
+  cell is empty/missing; a downloaded xlsx or earlier dump is stale.
+- **Provenance:** a value seen in the PM's sheet is the PM's. Never write "dev
+  will add X" or attribute naming to a team unless the user said so; label
+  AI-derived items "(proposal)".
+
 ## Notes column rules
 
 Notes describe **caveats of the current behaviour, at product level**. They

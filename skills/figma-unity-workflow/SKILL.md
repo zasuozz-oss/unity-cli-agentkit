@@ -14,6 +14,10 @@ the project has no copy, read `~/.unity-cli-agentkit/skills/unity-figma-cli/SKIL
 
 Before telling the user "I can't reach Figma" or "you need to run plugin X":
 
+0. For Figma in a Unity project use `figma-cli`. Launch Figma only via
+   `figma-cli launch` — never `open -a Figma` (no debug port → `no_cdp` and a
+   restart). Ignore Figma MCP bridge tools that appear automatically unless the
+   user asks for them.
 1. `figma-cli status` (and `figma-cli list`) — the CLI exports straight from
    Figma Desktop over CDP; **no Figma plugin run is needed** (`unity_export`).
 2. Look for an importer in the project (`FigmaImporter.Live.FigmaQuickImport`,
@@ -97,6 +101,15 @@ three correction rounds when the agent kept resizing the frame instead.
   visible design node present, right shape, right position (`unity-figma-cli` → "Verify").
   Lines off for missing server data go in the report, not `SetActive(false)`.
 - Behaviour (popup animation, dim alpha, fit) follows the project's other popups, not Figma.
+- Verify a new popup in the real game flow (boot → menu → the path the user takes), not an
+  empty scene; set its canvas sorting layer like sibling popups; if a persisted "seen" flag
+  gates it, reset that flag in the user's Editor.
+- Load `utk-playmode-driving` before the first Play verification (unfocused Editor; sleep
+  loops wasted ~8 calls per verification).
+- Designers iterate the same screen: keep the exported node list (manifest) and diff
+  against it on the next pass.
+- Before deleting sprites of a replaced popup, GUID-grep across Assets + ProjectSettings;
+  keep sprites sibling variants still use.
 - Numbers first (`utk-exec-query`: rect sizes, text `isTextOverflowing`,
   `preferredWidth` vs rect width), then screenshots.
 - Aspect sweep including the narrow end: 9:16, 9:19.5, 9:20, 9:21, 9:22, 9:23

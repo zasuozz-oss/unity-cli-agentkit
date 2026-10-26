@@ -249,6 +249,25 @@ it done:
 - Colors uniformly washed out vs the Figma hex → post-processing / tonemapping
   is hitting the UI camera (URP template Global Volume), not a wrong import.
 
+### Compare-against-Figma checklist
+
+A "check only, don't fix" request still lists every property class checked: position, size,
+rotation, font, color, effects.
+
+| Check | How / tell |
+|---|---|
+| Whole frame | Sample N points of the Figma screenshot and the Unity render, print RGB deltas. Per-sprite comparison misses overlay layers (a background was image + 57% gradient overlay; Unity still had the old PNG) |
+| Rotation | figma-cli returns none. Tell: absolute bbox size ≠ box size → derive the angle. Text inside a rotated badge needs the rotation too |
+| Blend mode | A group with `blendMode` SCREEN etc. exported as a flat PNG loses the effect. Check `blendMode`/`opacity` of the offending layer; such an element can't be a plain `Image` |
+| Fonts | Answer "font and size correct?" with a per-text table Figma \| Unity \| OK/fixed: face, size × canvas/frame scale (2× for 360→720), color, case |
+| Font overrides | grep runtime code for `\.font =` (it overrides prefab fonts); read size on the live Play instance, not the prefab asset (autosize leftovers) |
+| Font weight | Thin-looking → measure ink coverage and report; never silently swap weights. After an importer run, check every node's `fontName` against `figma-cli get_node --fields fontName` (wrong weights get assigned) |
+| Missing font | Google Fonts may be auto-provisioned; a custom foundry font needs the .ttf from the designer |
+| Card/frame auto-shrink | Render the prefab next to the Figma screenshot before commit (a card came out 27px short) |
+| Hidden design row | On the user's decision (data not available yet), shift following siblings up by the row height in the same change and state how to restore |
+| Decorative `Image` in ScrollRect content | Keep `raycastTarget` ON (no handler), or a drag starting on it never reaches the ScrollRect; verify by dragging from that spot |
+| Full-width bar under a narrower mask | Widen the mask padding (`RectMask2D` negative padding), not the bar |
+
 ### Distortion audit
 
 Run `unity-ui-sprite-distortion` → `scripts/sprite_distortion_audit.cs` after

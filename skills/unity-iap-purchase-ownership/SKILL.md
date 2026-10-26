@@ -107,6 +107,11 @@ verified only by compile and unit tests.
   parsing "1.1.6" as `1` treats every build as ancient.
 - Adding the field to the client model also means regenerating whatever
   serializer code the project generates. Otherwise the new client drops it too.
+- **Fail closed on unknown/new purchase types.** When `purchase_type` is a free
+  string and the client's default branch treats unknown types as buyable, old
+  builds will sell a newly gated type. Ask "what do builds that don't know it
+  do?", make the server's buy endpoint reject it with a user-facing message, and
+  add a client test for the new type.
 
 ## 6b. Price labels: one getter, never a guessed currency
 
@@ -133,6 +138,12 @@ before the store's product metadata arrived, falling back to `"$" + backendUsd`.
 - Use a fresh account per attempt: a purchase mutates server state, so a replay
   on the same account takes a different path (`@unity-ui-spam-click`
   pre-flight).
+- Before proposing an SDK-based fix, read the SDK source in `Library/PackageCache`.
+  E.g. an IAP SDK's (such as Qonversion) "custom user property" is user-level and
+  overwritten by the next purchase, not per-transaction metadata. The server must
+  grant by the paid transaction (webhook/RTDN), not by client intent status.
+- Pending purchases saved only after confirm returns = lost reward if the app
+  quits in between; persist the pending record before the confirm call.
 - Keep scope: Editor-only diagnostics stay Editor-only unless the user approved
   the device path too. Propose server-side changes; do not assume them.
 
