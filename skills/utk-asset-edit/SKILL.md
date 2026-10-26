@@ -1,6 +1,6 @@
 ---
 name: utk-asset-edit
-description: Use when renaming, retargeting, or tweaking Unity assets stored as text (YAML) — prefab/asset renames, m_Name changes, serialized field value tweaks, GUID reference swaps, bulk find-and-replace — and you must decide between editing files directly and going through the editor with utk. Also before ANY direct write (Python, sed, Edit) to a `.unity`/`.prefab`/`.asset` file while the Editor is open, and when such a write fails with `OSError: [Errno 22] Invalid argument`.
+description: "Use when renaming, retargeting, or tweaking Unity assets stored as text (YAML) — prefab/asset renames, m_Name changes, serialized field value tweaks, GUID reference swaps, bulk find-and-replace — and you must decide between editing files directly and going through the editor with utk. Also before ANY direct write (Python, sed, Edit) to a `.unity`/`.prefab`/`.asset` file while the Editor is open, and when such a write fails with `OSError: [Errno 22] Invalid argument`."
 ---
 
 # Unity Asset Edits — Direct YAML vs `utk`

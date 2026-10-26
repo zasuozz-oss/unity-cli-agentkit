@@ -225,7 +225,7 @@ description: "Use when auditing Unity asset import settings: texture compression
 
 ### 9.1 Canvas Strategy
 - [ ] Split canvases by update frequency: **Static** (never changes) · **HUD** (changes on events) · **Dynamic** (changes every frame)
-- [ ] Disable `raycastTarget` on ALL non-interactive UI elements (Labels, decorative Images, backgrounds)
+- [ ] Disable `raycastTarget` on ALL non-interactive UI elements (Labels, decorative Images, backgrounds) — except decorative graphics inside ScrollRect content (`unity-scrollview-recycling`)
 - [ ] ⚠️ Animating UI transforms on a canvas with many static children → full canvas rebuild → isolate animated elements
 - [ ] Profile `Canvas.BuildBatch` and `Canvas.SendWillRenderCanvases` in CPU Profiler
 - [ ] Use **TheGamedevGuru canvas rebuild detector** to find excessive rebuilds

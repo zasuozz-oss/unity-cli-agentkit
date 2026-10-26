@@ -137,9 +137,7 @@ serving the pipeline API.
 
 To launch (or reuse) an Editor with the flag: `<this skill>/scripts/unity-editor-open.sh <repo> [--headless]`.
 
-**No Editor running for this project** (`utk status` shows none reachable for it; `pgrep -l Unity` — another project's Editor doesn't count) → launch it yourself, don't ask the user. Version from `ProjectSettings/ProjectVersion.txt`:
-`nohup /Applications/Unity/Hub/Editor/<ver>/Unity.app/Contents/MacOS/Unity -projectPath "$PWD" -automated >/tmp/unity_launch.log 2>&1 &`
-then a bounded `utk editor wait --timeout <S>`.
+**No Editor running for this project** (`utk status` shows none reachable for it; `pgrep -l Unity` — another project's Editor doesn't count) → launch it yourself with `unity-editor-open.sh` above (it picks the version from `ProjectSettings/ProjectVersion.txt` and waits, bounded, until `utk` reaches it); don't ask the user.
 
 ## Safe Mode: "can't connect" is not "no Editor"
 When the project has C# compile errors, the Editor boots into **Safe Mode**,
@@ -256,8 +254,8 @@ invalid authentication token` (exit 6) is not a compile error and not "Editor
 dead". Read the `utk status` table first — it has one row per Editor:
 
 ```
-GameC  pipeline 0.8.0-exp.1  pid 14386  port 7800  reachable
-MyGame   pipeline 0.7.0-exp.1 OUTDATED…   pid 85544  port 7800  UNREACHABLE
+GameA pipeline 0.8.0-exp.1  pid 14386  port 7800  reachable
+GameB pipeline 0.7.0-exp.1 OUTDATED…   pid 85544  port 7800  UNREACHABLE
 ```
 
 - **Two rows on the same port** → the Editors are fighting over it; requests

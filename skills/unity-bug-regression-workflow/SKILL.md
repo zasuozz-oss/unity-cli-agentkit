@@ -1,6 +1,6 @@
 ---
 name: unity-bug-regression-workflow
-description: "Use when starting any bug fix from a bug report (version/build, description, steps to reproduce) — the bug must be reproduced in the Editor or by a failing test before any fix is written — when a bug 'came back', regressed, or was fixed before, or before changing error routing, badge, or state-machine logic. Also for UI-state bugs that appear after navigating: a bar/button/widget hidden or shown wrongly after moving between screens, show/hide state lost across panel navigation — "bị ẩn sau khi thao tác", "mất … sau khi chuyển màn", "thỉnh thoảng bị", "một số thao tác", "không nhớ bước nào"."
+description: "Use when starting any bug fix from a bug report (version/build, description, steps to reproduce) — the bug must be reproduced in the Editor or by a failing test before any fix is written — when a bug 'came back', regressed, or was fixed before, or before changing error routing, badge, or state-machine logic. Also for UI-state bugs that appear after navigating: a bar/button/widget hidden or shown wrongly after moving between screens, show/hide state lost across panel navigation — 'bị ẩn sau khi thao tác', 'mất … sau khi chuyển màn', 'thỉnh thoảng bị', 'một số thao tác', 'không nhớ bước nào'."
 ---
 
 # Unity Bug Fix & Regression Workflow

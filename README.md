@@ -389,8 +389,18 @@ skills above/below before adding its own rules):
 | `unity-record-video` | Recording a clip of the running game: Unity Recorder (real-time flows) vs FrameRecorder (`captureFramerate`, deterministic), finalize before `editor stop`, constant fps; `scripts/rec_template.cs`, `FrameRecorder.cs`, `encode.py` (labels, trim) |
 | `unity-fx-port` | Bringing particle FX from another project/pack into URP: shader remap, stripped UIParticle (renderers off), ×100 scale, 100 s lifetimes, UI centre placement; `scripts/fx_port_urp.cs`, `fx_audit.cs`, `FxBurst.cs` |
 | `unity-2d-topdown-sorting` | Front/back order on a 2D top-down map: one layer per band, foot = bottom of the showing art (not the pivot), footprints that never overlap; `scripts/YSort.cs`, `YSortGroup.cs`, `topdown_sort_audit.cs` flags STALE / TIE / FOOTPRINT |
+| `unity-figma-cli` | Figma design → uGUI by hand or through the project's importer: geometry/color/text/auto-layout mapping, sprite export (9-slice, halos), one-pass hierarchy build, compare-against-Figma checklist |
+| `unity-ui-build` | Entry workflow for any uGUI change through `utk`: reuse before build, centred/undistorted layout recipes, a numeric done gate per element and aspect, screenshots with boxes on |
+| `unity-ui-narrow-aspect-fit` | Fitting screens narrower than the design aspect (9:21 and taller) while wider ones stay identical: clamped-fit model, symptom → fix catalog, recycled grids, numbers-first verification |
+| `unity-ugui-aspect-overlap` | Rows that collide on tall/narrow phones: canvas width per aspect, row collision width, Expand vs shrinking layout row vs design change |
+| `unity-ui-motion-tuning` | Tuning UI animation (DOTween sequences, choreography, easing): tunables not `const`, scrub instead of replay, sweeps, matching a reference video |
+| `unity-ui-spam-click` | Fast-tap / spam / double-tap bugs: the mechanisms, repro ladder (region spam → directed taps → same-frame repro), guards where state goes wrong |
+| `unity-popup-queue` | Auto/queued and one-time popups: the turn contract, rules that re-arm themselves, non-idempotent dispatch, buttons that close only their own popup, shared-bar layering |
+| `unity-remote-image-flicker` | Icons/thumbnails that flicker or pop in on first open: preload before the panel needs it, bind once, fit remote images of unknown aspect, localized placeholders, loading indicators |
+| `unity-iap-purchase-ownership` | In-app purchases and ownership: idempotent confirmation, signed requests, one ownership source, old builds vs new fields, fail closed on unknown purchase types, price labels |
+| `unity-server-driven-feature-testing` | Server-driven time-based features (streaks, login rewards, battle pass): plan from the real API, the debug tool that advances days, accounts as state, test cases |
 
-…and 31 advisory skills, vendored from
+…and 29 advisory skills, vendored from
 [agentic-unity-skills](https://github.com/zasuozz-oss/antigravity-unity-skills),
 cover **what to write**. They carry their own activation descriptions, so an
 agent picks them up by topic:

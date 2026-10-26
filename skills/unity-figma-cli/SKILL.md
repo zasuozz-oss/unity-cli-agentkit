@@ -265,8 +265,7 @@ rotation, font, color, effects.
 | Missing font | Google Fonts may be auto-provisioned; a custom foundry font needs the .ttf from the designer |
 | Card/frame auto-shrink | Render the prefab next to the Figma screenshot before commit (a card came out 27px short) |
 | Hidden design row | On the user's decision (data not available yet), shift following siblings up by the row height in the same change and state how to restore |
-| Decorative `Image` in ScrollRect content | Keep `raycastTarget` ON (no handler), or a drag starting on it never reaches the ScrollRect; verify by dragging from that spot |
-| Full-width bar under a narrower mask | Widen the mask padding (`RectMask2D` negative padding), not the bar |
+| Inside a scroll view (decorative `Image` raycasts, full-width bar under a narrower mask) | `unity-scrollview-recycling` rules; verify by dragging from that spot |
 
 ### Distortion audit
 

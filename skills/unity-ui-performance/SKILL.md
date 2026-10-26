@@ -21,11 +21,11 @@ Comprehensive UI optimization covering **rendering performance** (canvas splits,
 
 ## Performance Best Practices
 - ✅ Split canvases by update frequency (static HUD vs dynamic damage numbers)
-- ✅ Disable `raycastTarget` on non-interactive elements (Labels, Images)
+- ✅ Disable `raycastTarget` on non-interactive elements (Labels, Images) — except decorative graphics inside ScrollRect content, which keep it ON so drags reach the ScrollRect (`@unity-scrollview-recycling`)
 - ✅ Use object pooling for scroll view items — never instantiate/destroy
 - ✅ Cache component references in `Awake()`
 - ❌ **NEVER** animate UI transforms on a canvas with many static children
-- ❌ **NEVER** enable raycastTarget on decorative elements
+- ❌ **NEVER** enable raycastTarget on decorative elements (outside scroll content, see above)
 
 ## State Safety Principles
 - ✅ **Resource Pairing**: Every `ShowLoading()` must have `HideLoading()` on ALL exit paths (use `finally`)

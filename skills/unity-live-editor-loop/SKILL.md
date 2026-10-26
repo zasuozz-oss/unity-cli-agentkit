@@ -75,7 +75,7 @@ back (`utk-exec-query`) before and after.
 EditMode tests that build a mock popup/scene can stay green while the real
 prefab is wrong. For "the popup has one button / uses the shared frame /
 text fits", open the real scene or prefab in the test and assert on it
-(`ui-scene-authoring` → verification).
+(`unity-ui-build` → the done gate).
 
 ## 5. Budget and hand-back
 
