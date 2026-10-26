@@ -964,7 +964,7 @@ func TestGateCompilesANewCsFileTheCsprojDoesNotListYet(t *testing.T) {
 }
 
 // A .cs deleted since the last Editor project sync (its csproj still lists it) must not fail the gate with CS2001: the gate
-// drops it from that build (My-Game, removing a probe file, 2026-10-07).
+// drops it from that build (removing a probe file).
 func TestGateIgnoresADeletedCsFileTheCsprojStillLists(t *testing.T) {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// mvid-fixture.dll is My-Game' Library/ScriptAssemblies/PPv2URPConverters.dll; the Editor reported this ModuleVersionId for it.
+// mvid-fixture.dll is a game project's Library/ScriptAssemblies/PPv2URPConverters.dll; the Editor reported this ModuleVersionId for it.
 const fixtureMVID = "1cae212c-8d54-40d3-bb64-2dee2bbd9984"
 
 func TestPeMVIDReadsTheModuleVersionId(t *testing.T) {

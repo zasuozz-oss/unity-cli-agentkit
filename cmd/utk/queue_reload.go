@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// A compile that finished is not a compile that loaded. Observed (My-Game W7 P6c): a test file was edited while a long test job
+// A compile that finished is not a compile that loaded. Observed: a test file was edited while a long test job
 // ran; the next `queue submit compile` answered "COMPILE OK … ran 0s", Library/ScriptAssemblies/*.dll on disk was newer than the
 // source, yet the domain never reloaded and every later test ran the old IL until something called RequestScriptReload. Nothing
 // in the verb's own status says so ("up_to_date" / "completed" both read as success), so after the refresh the cycle compares the

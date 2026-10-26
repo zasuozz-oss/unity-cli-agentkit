@@ -28,7 +28,7 @@ func TestEditorLockName_IsTheProjectFolder(t *testing.T) {
 	for name, want := range map[string]string{
 		"My-Game":    "my-game",
 		"My-Game-a4": "my-game-a4",
-		"My Game_2":    "my-game-2",
+		"My Game_2":  "my-game-2",
 	} {
 		root := fakeProject(t, tmp, name)
 		if got := editorLockName(root); got != want {
